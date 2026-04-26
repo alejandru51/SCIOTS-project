@@ -1,0 +1,24 @@
+{
+  "name": "sciots-project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "nodemon app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alejandru51/SCIOTS-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/alejandru51/SCIOTS-project/issues"
+  },
+  "homepage": "https://github.com/alejandru51/SCIOTS-project#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
