@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/alejandru51/SCIOTS-project#readme",
   "dependencies": {
+    "bigint-crypto-utils": "^3.3.0",
     "express": "^5.2.1"
   }
 }
