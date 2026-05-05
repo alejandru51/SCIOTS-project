@@ -1,8 +1,8 @@
 {
-  "name": "sciots-project",
+  "name": "sciots-rsa",
   "version": "1.0.0",
   "description": "",
-  "main": "app.js",
+  "main": "rsa.js",
   "scripts": {
     "start": "nodemon app.js"
   },
@@ -13,7 +13,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/alejandru51/SCIOTS-project/issues"
   },
