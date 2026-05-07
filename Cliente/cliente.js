@@ -5,16 +5,16 @@ import express from 'express';
 import * as paillierBigint from 'paillier-bigint'
 
 
-const SERVER_BASE_URL  = 'http://localhost:3000';
+const SERVER_BASE_URL  = 'http://localhost:3001';
 const TOTAL_SENSORS    = 10;
-const AVG_PER_SECOND   = 1;      // media de sensores que envían por segundo
+const AVG_PER_SECOND   = 10;      // media de sensores que envían por segundo
 const LOG_EVERY_N      = 10;      // imprime log 1 de cada N envíos
 
 const SENSOR_TYPES = [
-  { type: 'light', value: 0,  unit: 'Wh',   min_cons: 100, max_cons: 5000 },
-  { type: 'water',      value: 0, unit: 'L',    min_cons: 1,   max_cons: 500  },
-  { type: 'humidity',        value: 0, unit: 'dm3',  min_cons: 50,  max_cons: 3000 },
-  { type: 'temperature', value: 0, unit: 'C', min_cons: 150, max_cons: 350  },
+  { type: 'light', value: 0,  unit: 'Wh',   min_cons: 100, max_cons: 5000 , zona: 'Parque de las Moscas'},
+  { type: 'water',      value: 0, unit: 'L',    min_cons: 1,   max_cons: 500  ,zona: 'Parque de las Moscas'},
+  { type: 'humidity',        value: 0, unit: 'dm3',  min_cons: 50,  max_cons: 3000 ,zona: 'El barrio'},
+  { type: 'temperature', value: 0, unit: 'C', min_cons: 150, max_cons: 350  ,zona: 'El barrio'},
 ];
 
 function randInt(min, max) {
@@ -28,12 +28,18 @@ function randomDelay(avgMs) {
   return -Math.log(Math.random()) * avgMs;
 }
 
-function textToBigInt(text){
+/* function textToBigInt(text){
   const encoder = new TextEncoder();
   const bytes = encoder.encode(text);
   const hex = [...bytes].map(b => b.toString(16).padStart(2,'0')).join('');
   return BigInt('0x'+hex);
-}
+} */
+const SENSOR_TYPE_CODES = {
+  light:       0b0001,
+  water:       0b0010,
+  humidity:    0b0011,
+  temperature: 0b0100,
+};
 function buildSensors(total) {
   return Array.from({ length: total }, (_, i) => {
     const def = SENSOR_TYPES[i % SENSOR_TYPES.length];
@@ -55,10 +61,10 @@ async function sendReading(publicKey, sensor) {
   const consumption     = randInt(sensor.min_cons, sensor.max_cons);
   const timestamp = Date.now();
 
-  const typeBits    = textToBigInt(sensor.type)& 0xFFFFn;
-  const tsBits    = (BigInt(timestamp) & 0xFFFFFFFFFFn) << 20n;
-  const consumptionBits = BigInt(consumption) & 0xFFFFFn;
-  const m         = (typeBits << 60n) | tsBits | consumptionBits;
+  const typeBits    = BigInt(SENSOR_TYPE_CODES[sensor.type]) & 0xFn;
+  const tsBits    = (BigInt(timestamp) & 0xFFFFFFFFFFn) << 40n;
+  const consumptionBits = BigInt(consumption) & 0xFFFFFFFFFFn;
+  const m         = (typeBits << 80n) | tsBits | consumptionBits;
 
   const ciphertext = publicKey.encrypt(m);
 
@@ -66,7 +72,8 @@ async function sendReading(publicKey, sensor) {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({
-      ciphertext: ciphertext.toString()
+      ciphertext: ciphertext.toString(),
+      zone: sensor.zona
     }),
   });
 

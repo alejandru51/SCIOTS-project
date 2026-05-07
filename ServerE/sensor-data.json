@@ -1,126 +1,82 @@
 {
-  "ht": {
-    "1991-07-04T01:00:00.000Z": [
-      {
-        "consumption": 645,
-        "receivedAt": "1991-07-04T01:56:51.085Z"
-      },
-      {
-        "consumption": 2032,
-        "receivedAt": "1991-07-04T01:56:52.039Z"
-      },
-      {
-        "consumption": 1152,
-        "receivedAt": "1991-07-04T01:56:55.423Z"
-      },
-      {
-        "consumption": 1493,
-        "receivedAt": "1991-07-04T01:56:56.093Z"
-      },
-      {
-        "consumption": 2085,
-        "receivedAt": "1991-07-04T01:57:01.190Z"
-      },
-      {
-        "consumption": 1514,
-        "receivedAt": "1991-07-04T01:57:02.859Z"
-      },
-      {
-        "consumption": 1313,
-        "receivedAt": "1991-07-04T01:57:03.155Z"
-      },
-      {
-        "consumption": 3089,
-        "receivedAt": "1991-07-04T01:57:11.663Z"
-      },
-      {
-        "consumption": 1274,
-        "receivedAt": "1991-07-04T01:57:16.614Z"
-      },
-      {
-        "consumption": 3494,
-        "receivedAt": "1991-07-04T01:57:17.270Z"
-      },
-      {
-        "consumption": 3210,
-        "receivedAt": "1991-07-04T01:57:20.059Z"
-      }
-    ]
-  },
-  "re": {
-    "1991-07-04T01:00:00.000Z": [
-      {
-        "consumption": 280,
-        "receivedAt": "1991-07-04T01:56:52.721Z"
-      },
-      {
-        "consumption": 287,
-        "receivedAt": "1991-07-04T01:57:08.273Z"
-      },
-      {
-        "consumption": 338,
-        "receivedAt": "1991-07-04T01:57:10.992Z"
-      },
-      {
-        "consumption": 230,
-        "receivedAt": "1991-07-04T01:57:14.410Z"
-      },
-      {
-        "consumption": 272,
-        "receivedAt": "1991-07-04T01:57:15.380Z"
-      },
-      {
-        "consumption": 194,
-        "receivedAt": "1991-07-04T01:57:19.797Z"
-      }
-    ]
-  },
-  "er": {
-    "1991-07-04T01:00:00.000Z": [
-      {
-        "consumption": 350,
-        "receivedAt": "1991-07-04T01:56:53.323Z"
-      },
-      {
-        "consumption": 430,
-        "receivedAt": "1991-07-04T01:57:05.906Z"
-      },
-      {
-        "consumption": 356,
-        "receivedAt": "1991-07-04T01:57:06.646Z"
-      },
-      {
-        "consumption": 45,
-        "receivedAt": "1991-07-04T01:57:07.825Z"
-      },
-      {
-        "consumption": 39,
-        "receivedAt": "1991-07-04T01:57:09.991Z"
-      },
-      {
-        "consumption": 411,
-        "receivedAt": "1991-07-04T01:57:12.413Z"
-      },
-      {
-        "consumption": 117,
-        "receivedAt": "1991-07-04T01:57:19.358Z"
-      }
-    ]
-  },
-  "ty": {
-    "1991-07-04T01:00:00.000Z": [
-      {
-        "consumption": 190,
-        "receivedAt": "1991-07-04T01:56:54.100Z"
-      },
-      {
-        "consumption": 1322,
-        "receivedAt": "1991-07-04T01:57:06.919Z"
-      },
-      {
-        "consumption": 2903,
-        "receivedAt": "1991-07-04T01:57:10.623Z"
-      }
-    ]
+  "zones": {
+    "Parque de las Moscas": {
+      "2026-05-07T08:00:00.000Z": [
+        {
+          "consumption": 129829,
+          "count": 100,
+          "sentAt": "2026-05-07T08:22:28.833Z"
+        },
+        {
+          "consumption": 12424,
+          "count": 100,
+          "sentAt": "2026-05-07T08:22:30.702Z"
+        },
+        {
+          "consumption": 136368,
+          "count": 100,
+          "sentAt": "2026-05-07T08:22:52.077Z"
+        },
+        {
+          "consumption": 42674,
+          "count": 100,
+          "sentAt": "2026-05-07T08:23:00.703Z"
+        },
+        {
+          "consumption": 132987,
+          "count": 100,
+          "sentAt": "2026-05-07T08:23:22.537Z"
+        },
+        {
+          "consumption": 71699,
+          "count": 100,
+          "sentAt": "2026-05-07T08:23:30.704Z"
+        },
+        {
+          "consumption": 52640,
+          "count": 100,
+          "sentAt": "2026-05-07T08:29:33.643Z"
+        },
+        {
+          "consumption": 133096,
+          "count": 100,
+          "sentAt": "2026-05-07T08:29:56.264Z"
+        },
+        {
+          "consumption": 32898,
+          "count": 100,
+          "sentAt": "2026-05-07T08:30:03.642Z"
+        }
+      ]
+    },
+    "El barrio": {
+      "2026-05-07T08:00:00.000Z": [
+        {
+          "consumption": 73306,
+          "count": 100,
+          "sentAt": "2026-05-07T08:22:30.778Z"
+        },
+        {
+          "consumption": 96531,
+          "count": 100,
+          "sentAt": "2026-05-07T08:23:00.779Z"
+        },
+        {
+          "consumption": 76702,
+          "count": 100,
+          "sentAt": "2026-05-07T08:23:30.782Z"
+        },
+        {
+          "consumption": 32919,
+          "count": 100,
+          "sentAt": "2026-05-07T08:29:33.721Z"
+        },
+        {
+          "consumption": 70330,
+          "count": 100,
+          "sentAt": "2026-05-07T08:30:03.715Z"
+        }
+      ]
+    }
   }
 }

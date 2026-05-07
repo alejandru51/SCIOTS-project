@@ -33,20 +33,25 @@ function hourKey(timestamp) {
   d.setMinutes(0, 0, 0);
   return d.toISOString();
 }
-
+const SENSOR_TYPE_NAMES = {
+  1: 'light',
+  2: 'water',
+  3: 'humidity',
+  4: 'temperature',
+};
 // Extrae los 3 campos del BigInt empaquetado
 function unpackMessage(m) {
-  const consumptionBits = m & 0xFFFFFn;                          // bits 0-19
-  const tsBits    = (m >> 20n) & 0xFFFFFFFFFFn;            // bits 20-59
-  const typeBits    = (m >> 60n) & 0xFFFFn;                  // bits 60-75
+  const consumptionBits = m & 0xFFFFFFFFFFn;                          // bits 0-19
+  const tsBits    = (m >> 40n) & 0xFFFFFFFFFFn;            // bits 20-59
+  const typeBits    = (m >> 80n) & 0xFFFFn;                  // bits 60-75
   
   return {
-    sensorType:  Number(typeBits),
+    sensorType:  SENSOR_TYPE_NAMES[Number(typeBits)],
     timestamp:  Number(tsBits),
     consumption:  Number(consumptionBits),
   };
 }
-function bigIntToText(n){
+/* function bigIntToText(n){
   let hex = n.toString(16);
   if(hex.length % 2 !== 0){
     hex = '0'+hex;
@@ -54,7 +59,7 @@ function bigIntToText(n){
   const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte,16)));
   const decoder = new TextDecoder();
   return decoder.decode(bytes);
-}
+} */
 
 app.get('/paillier-public-key', (req, res) => {
   if (!publicKey) {
@@ -66,39 +71,54 @@ app.get('/paillier-public-key', (req, res) => {
   });
 });
 
+// server.js — sustituye SOLO este handler, nada más cambia
+
 app.post('/paillier-decrypt', async (req, res) => {
-  const { ciphertext } = req.body;
+  const { ciphertext, aggregated, zone, sentAt } = req.body;
 
   if (!ciphertext) {
-    return res.status(400).json({ error: 'Faltan campos: ciphertetxt' });
+    return res.status(400).json({ error: 'Falta campo: ciphertext' });
   }
 
   try {
-    // Descifra el valor
     const m = privateKey.decrypt(BigInt(ciphertext));
-    
-    const {sensorType, timestamp, consumption} = unpackMessage(m);
-    const sensorTypeString = bigIntToText(sensorType);
-    const hour  = hourKey(timestamp);
+    const { consumption } = unpackMessage(m, aggregated === true);
     const data = await loadData();
 
-    // Estructura: data[type][hour] = [ valor, valor, valor, ... ]
-    if (!data[sensorTypeString]) {
-      data[sensorTypeString] = {};
-    }
-    if (!data[sensorTypeString][hour]) {
-      data[sensorTypeString][hour] = [];
-    }
+    if (aggregated && zone) {
+      // ── Mensaje agregado del agregador ───────────────────────────────
+      // Estructura: data.zones[zone][hora] = [{ consumption, count, sentAt }, ...]
+      const hour = hourKey(new Date(sentAt).getTime());
 
-    data[sensorTypeString][hour].push({
-      consumption,
-      receivedAt: new Date(timestamp).toISOString(),
-    });
+      if (!data.zones)         data.zones = {};
+      if (!data.zones[zone])   data.zones[zone] = {};
+      if (!data.zones[zone][hour]) data.zones[zone][hour] = [];
+
+      data.zones[zone][hour].push({
+        consumption,          // suma de los 100 sensores
+        count: 100,
+        sentAt,
+      });
+
+      console.log(`Agregado: zona=${zone} | consumption=${consumption} | ${hour}`);
+
+    } else {
+      // ── Mensaje individual directo (compatibilidad) ───────────────────
+      const { sensorType, timestamp } = unpackMessage(m, false);
+      const hour = hourKey(timestamp);
+
+      if (!data[sensorType])       data[sensorType] = {};
+      if (!data[sensorType][hour]) data[sensorType][hour] = [];
+
+      data[sensorType][hour].push({
+        consumption,
+        receivedAt: new Date(timestamp).toISOString(),
+      });
+
+      console.log(`Individual: ${sensorType} | ${consumption} | ${hour}`);
+    }
 
     await saveData(data);
-
-    console.log(`Recibido: ${sensorTypeString} | ${consumption} | ${hour}`);
-
     res.json({ ok: true });
 
   } catch (err) {
