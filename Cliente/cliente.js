@@ -1,136 +1,191 @@
-'use-strict';
+'use strict';
 
-import express from 'express';
+import crypto    from 'crypto';
+import readline  from 'readline';
+import { modPow, modInv } from 'bigint-crypto-utils';
+import { RsaPublicKey }   from 'sciots-rsa';
 
-import * as paillierBigint from 'paillier-bigint'
+const SERVER = 'http://localhost:3000';
 
+// Estado en memoria entre opciones del menú
+let publicKey  = null;
+let signature  = null;
+let currentId  = null;
 
-const SERVER_BASE_URL  = 'http://localhost:3001';
-const TOTAL_SENSORS    = 10;
-const AVG_PER_SECOND   = 10;      // media de sensores que envían por segundo
-const LOG_EVERY_N      = 10;      // imprime log 1 de cada N envíos
-
-const SENSOR_TYPES = [
-  { type: 'light', value: 0,  unit: 'Wh',   min_cons: 100, max_cons: 5000 , zona: 'Parque de las Moscas'},
-  { type: 'water',      value: 0, unit: 'L',    min_cons: 1,   max_cons: 500  ,zona: 'Parque de las Moscas'},
-  { type: 'humidity',        value: 0, unit: 'dm3',  min_cons: 50,  max_cons: 3000 ,zona: 'El barrio'},
-  { type: 'temperature', value: 0, unit: 'C', min_cons: 150, max_cons: 350  ,zona: 'El barrio'},
-];
-
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+// ─── Helpers de terminal ──────────────────────────────────────────────────
+function prompt(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans.trim()); }));
 }
 
-// Devuelve un delay aleatorio con media = avgMs (distribución exponencial)
-// La distribución exponencial es la más realista para modelar
-// tiempos entre eventos independientes (como sensores reales)
-function randomDelay(avgMs) {
-  return -Math.log(Math.random()) * avgMs;
-}
+function promptHidden(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input:  process.stdin,
+      output: process.stdout,
+    });
 
-/* function textToBigInt(text){
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(text);
-  const hex = [...bytes].map(b => b.toString(16).padStart(2,'0')).join('');
-  return BigInt('0x'+hex);
-} */
-const SENSOR_TYPE_CODES = {
-  light:       0b0001,
-  water:       0b0010,
-  humidity:    0b0011,
-  temperature: 0b0100,
-};
-function buildSensors(total) {
-  return Array.from({ length: total }, (_, i) => {
-    const def = SENSOR_TYPES[i % SENSOR_TYPES.length];
-    return {
-      id: `sensor-${String(i + 1).padStart(5, '0')}`,
-      ...def,
-    };
+    // Si stdin es TTY usamos modo raw para mostrar asteriscos
+    if (process.stdin.isTTY) {
+      process.stdout.write(question);
+      process.stdin.setRawMode(true);
+      let pass = '';
+      const handler = (ch) => {
+        const c = ch.toString();
+        if (c === '\n' || c === '\r' || c === '\u0004') {
+          process.stdin.setRawMode(false);
+          process.stdin.removeListener('data', handler);
+          rl.close();
+          process.stdout.write('\n');
+          resolve(pass);
+        } else if (c === '\u0003') {
+          process.exit();
+        } else if (c === '\u007f') {
+          if (pass.length > 0) { pass = pass.slice(0, -1); process.stdout.write('\b \b'); }
+        } else {
+          pass += c;
+          process.stdout.write('*');
+        }
+      };
+      process.stdin.resume();
+      process.stdin.on('data', handler);
+    } else {
+      // Fallback: stdin no es TTY (nodemon, pipe...) — lee sin ocultar
+      rl.question(question, (ans) => {
+        rl.close();
+        resolve(ans.trim());
+      });
+    }
   });
 }
 
-async function fetchPublicKey() {
-  const res = await fetch(`${SERVER_BASE_URL}/paillier-public-key`);
-  if (!res.ok) throw new Error(`Error al obtener clave pública: ${res.status}`);
-  const { n, g } = await res.json();
-  return new paillierBigint.PublicKey(BigInt(n), BigInt(g));
+function randomBlindingFactor(n) {
+  let r;
+  do {
+    const bytes = crypto.randomBytes(Math.floor(n.toString(2).length / 8));
+    r = BigInt('0x' + bytes.toString('hex')) % n;
+  } while (r < 2n);
+  return r;
 }
 
-async function sendReading(publicKey, sensor) {
-  const consumption     = randInt(sensor.min_cons, sensor.max_cons);
-  const timestamp = Date.now();
+// ─── Opción 1: login + obtener firma ciega ────────────────────────────────
+async function opcionConectar() {
+  console.log('\n── Conexión al servidor y obtención de firma ciega ──');
+  const username = await prompt('Usuario   : ');
+  const password = await promptHidden('Contraseña: ');
+  const id       = await prompt('ID a firmar: ');
 
-  const typeBits    = BigInt(SENSOR_TYPE_CODES[sensor.type]) & 0xFn;
-  const tsBits    = (BigInt(timestamp) & 0xFFFFFFFFFFn) << 40n;
-  const consumptionBits = BigInt(consumption) & 0xFFFFFFFFFFn;
-  const m         = (typeBits << 80n) | tsBits | consumptionBits;
+  // 1. Pide clave pública — el servidor valida credenciales aquí
+  console.log('\nConectando con el servidor...');
+  const pkRes = await fetch(`${SERVER}/rsa-public-key`, {
+    headers: {
+      'X-Username': username,
+      'X-Password': password,
+    },
+  });
 
-  const ciphertext = publicKey.encrypt(m);
+  if (!pkRes.ok) {
+    const err = await pkRes.json();
+    console.error(`\nAcceso denegado: ${err.error}\n`);
+    return;
+  }
 
-  await fetch(`${SERVER_BASE_URL}/paillier-decrypt`, {
+  const { n, e } = await pkRes.json();
+  publicKey  = new RsaPublicKey(BigInt(n), BigInt(e));
+  currentId  = id;
+
+  console.log('Autenticado. Clave pública recibida.');
+
+  // 2. Hash del ID
+  const hashHex    = crypto.createHash('sha256').update(id).digest('hex');
+  const hashBigInt = BigInt('0x' + hashHex) % publicKey.n;
+
+  // 3. Factor de cegamiento
+  const r   = randomBlindingFactor(publicKey.n);
+  const rE  = modPow(r, publicKey.e, publicKey.n);
+  const blindedMessage = (hashBigInt * rE) % publicKey.n;
+
+  console.log(`\nHash(ID)  : ${hashHex}`);
+  console.log(`Cegado    : ${blindedMessage.toString().slice(0, 30)}...`);
+
+  // 4. Envía mensaje cegado al servidor
+  const signRes = await fetch(`${SERVER}/blind-sign`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ blindedMessage: blindedMessage.toString() }),
+  });
+
+  if (!signRes.ok) {
+    const err = await signRes.json();
+    console.error(`\nError en firma ciega: ${err.error}\n`);
+    return;
+  }
+
+  const { blindSignature } = await signRes.json();
+
+  // 5. Descega la firma: S = S' * r⁻¹ mod n = hash^d
+  const rInv = modInv(r, publicKey.n);
+  signature  = (BigInt(blindSignature) * rInv) % publicKey.n;
+
+  console.log(`Firma desencegada: ${signature.toString().slice(0, 30)}...`);
+  console.log('\nFirma ciega obtenida. Ahora puedes usar la opción 2 para enviarla.\n');
+}
+
+// ─── Opción 2: enviar firma al servidor para verificar y registrar ─────────
+async function opcionEnviarFirma() {
+  if (!signature || !currentId) {
+    console.log('\nPrimero debes conectarte y obtener la firma (opción 1).\n');
+    return;
+  }
+
+  console.log(`\n── Enviando firma para ID: ${currentId} ──`);
+
+  const res = await fetch(`${SERVER}/verify-signature`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({
-      ciphertext: ciphertext.toString(),
-      zone: sensor.zona
+      id:        currentId,
+      signature: signature.toString()
     }),
   });
 
-  return sensor.id;
+  const result = await res.json();
+
+  if (res.ok) {
+    console.log(`\nID registrado correctamente: ${result.registered}\n`);
+    // Limpiamos estado para no reutilizar la misma firma
+    signature = null;
+    currentId = null;
+  } else if (res.status === 409) {
+    console.error(`\nID ya registrado — no válido: ${result.error}\n`);
+  } else if (res.status === 401) {
+    console.error(`\nFirma inválida: ${result.error}\n`);
+  } else {
+    console.error(`\nError: ${result.error}\n`);
+  }
 }
 
-// Cada sensor corre su propio bucle infinito e independiente
-async function runSensor(publicKey, sensor, avgIntervalMs, logCounter) {
+// ─── Menú principal ───────────────────────────────────────────────────────
+async function menu() {
   while (true) {
-    // Espera un tiempo aleatorio antes de enviar (media = avgIntervalMs)
-    const delay = randomDelay(avgIntervalMs);
-    await new Promise(resolve => setTimeout(resolve, delay));
+    console.log('╔══════════════════════════════════════╗');
+    console.log('║       CLIENTE FIRMA CIEGA RSA        ║');
+    console.log('╠══════════════════════════════════════╣');
+    console.log('║  1 · Conectar al servidor y obtener  ║');
+    console.log('║      firma ciega (login + ID)        ║');
+    console.log('║  2 · Enviar firma al servidor        ║');
+    console.log('║  0 · Salir                           ║');
+    console.log('╚══════════════════════════════════════╝');
 
-    try {
-      const value = await sendReading(publicKey, sensor);
+    const opcion = await prompt('Elige opción: ');
 
-      // Incrementa contador global y loguea cada LOG_EVERY_N envíos
-      logCounter.count++;
-      if (logCounter.count % LOG_EVERY_N === 0) {
-        console.log(
-          `[${new Date().toISOString()}] ${sensor.id} | ` +
-          `${sensor.type}: ${sensor.consumption} | ` +
-          `total enviados: ${logCounter.count}`
-        );
-      }
-    } catch (err) {
-      console.error(`ERROR ${sensor.id}: ${err.message}`);
+    switch (opcion) {
+      case '1': await opcionConectar();    break;
+      case '2': await opcionEnviarFirma(); break;
+      case '0': console.log('Saliendo...'); process.exit(0);
+      default:  console.log('\nOpción no válida.\n');
     }
   }
 }
 
-async function main() {
-  console.log('Obteniendo clave pública del servido.');
-  const publicKey = await fetchPublicKey();
-  console.log('Clave pública obtenida.\n');
-
-  const sensors = buildSensors(TOTAL_SENSORS);
-
-  // Intervalo medio por sensor para alcanzar AVG_PER_SECOND envíos/segundo globales
-  // Si quieres 50 envíos/s con 100 sensores, cada sensor envía cada 100/50 = 2s de media
-  const avgIntervalMs = (TOTAL_SENSORS / AVG_PER_SECOND) * 1000;
-
-  console.log(`Arrancando ${TOTAL_SENSORS} sensores independientes`);
-  console.log(`Media global : ${AVG_PER_SECOND} envíos/segundo`);
-  console.log(`Media por sensor: cada ${(avgIntervalMs / 1000).toFixed(1)}s\n`);
-
-  // Contador compartido entre todos los sensores para el log global
-  const logCounter = { count: 0 };
-
-  // Arranca cada sensor en su propio bucle asíncrono independiente
-  // No se usa await aquí para que todos corran en paralelo sin bloquearse
-  for (const sensor of sensors) {
-    runSensor(publicKey, sensor, avgIntervalMs, logCounter);
-  }
-}
-
-main().catch(err => {
-  console.error('Error fatal:', err);
-  process.exit(1);
-});
+menu().catch(err => { console.error('Error fatal:', err); process.exit(1); });
