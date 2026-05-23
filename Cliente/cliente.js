@@ -4,13 +4,51 @@ import crypto    from 'crypto';
 import readline  from 'readline';
 import { modPow, modInv } from 'bigint-crypto-utils';
 import { RsaPublicKey }   from 'sciots-rsa';
+import coap from 'coap';
 
-const SERVER = 'http://localhost:3000';
+const SERVER_HOST = 'localhost';
+const SERVER_PORT = 5683;
 
 // Estado en memoria entre opciones del menú
 let publicKey  = null;
 let signature  = null;
 let currentId  = null;
+
+// ─── Helper CoAP (promisificado) ──────────────────────────────────────────
+function coapRequest({ method, path, payload, headers = {} }) {
+  return new Promise((resolve, reject) => {
+    const req = coap.request({
+      host:   SERVER_HOST,
+      port:   SERVER_PORT,
+      method,
+      pathname: path,
+    });
+
+    // Cabeceras personalizadas como opciones CoAP (usando opción 2048+ o string options)
+    for (const [key, value] of Object.entries(headers)) {
+      req.setOption(key, Buffer.from(value));
+    }
+
+    if (payload) {
+      req.write(JSON.stringify(payload));
+    }
+
+    req.on('response', (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk.toString(); });
+      res.on('end', () => {
+        const code = res.code; // e.g. '2.05', '4.01', '4.09'
+        const [major] = code.split('.').map(Number);
+        let parsed;
+        try { parsed = JSON.parse(data); } catch { parsed = { raw: data }; }
+        resolve({ ok: major === 2, code, body: parsed });
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 // ─── Helpers de terminal ──────────────────────────────────────────────────
 function prompt(question) {
@@ -25,7 +63,6 @@ function promptHidden(question) {
       output: process.stdout,
     });
 
-    // Si stdin es TTY usamos modo raw para mostrar asteriscos
     if (process.stdin.isTTY) {
       process.stdout.write(question);
       process.stdin.setRawMode(true);
@@ -50,7 +87,6 @@ function promptHidden(question) {
       process.stdin.resume();
       process.stdin.on('data', handler);
     } else {
-      // Fallback: stdin no es TTY (nodemon, pipe...) — lee sin ocultar
       rl.question(question, (ans) => {
         rl.close();
         resolve(ans.trim());
@@ -77,30 +113,26 @@ async function opcionConectar() {
 
   // 1. Pide clave pública — el servidor valida credenciales aquí
   console.log('\nConectando con el servidor...');
-  const pkRes = await fetch(`${SERVER}/rsa-public-key`, {
-    headers: {
-      'X-Username': username,
-      'X-Password': password,
-    },
-  });
+  const pkRes = await coapRequest({
+  method:  'POST',
+  path:    '/rsa-public-key',
+  payload: { username, password },
+});
 
   if (!pkRes.ok) {
-    const err = await pkRes.json();
-    console.error(`\nAcceso denegado: ${err.error}\n`);
+    console.error(`\nAcceso denegado: ${pkRes.body.error}\n`);
     return;
   }
 
-  const { n, e } = await pkRes.json();
+  const { n, e } = pkRes.body;
   publicKey  = new RsaPublicKey(BigInt(n), BigInt(e));
   currentId  = id;
 
   console.log('Autenticado. Clave pública recibida.');
 
-  // 2. Hash del ID
   const hashHex    = crypto.createHash('sha256').update(id).digest('hex');
   const hashBigInt = BigInt('0x' + hashHex) % publicKey.n;
 
-  // 3. Factor de cegamiento
   const r   = randomBlindingFactor(publicKey.n);
   const rE  = modPow(r, publicKey.e, publicKey.n);
   const blindedMessage = (hashBigInt * rE) % publicKey.n;
@@ -108,22 +140,20 @@ async function opcionConectar() {
   console.log(`\nHash(ID)  : ${hashHex}`);
   console.log(`Cegado    : ${blindedMessage.toString().slice(0, 30)}...`);
 
-  // 4. Envía mensaje cegado al servidor
-  const signRes = await fetch(`${SERVER}/blind-sign`, {
+  const signRes = await coapRequest({
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ blindedMessage: blindedMessage.toString() }),
+    path:    '/blind-sign',
+    payload: { blindedMessage: blindedMessage.toString() },
   });
 
   if (!signRes.ok) {
-    const err = await signRes.json();
-    console.error(`\nError en firma ciega: ${err.error}\n`);
+    console.error(`\nError en firma ciega: ${signRes.body.error}\n`);
     return;
   }
 
-  const { blindSignature } = await signRes.json();
+  const { blindSignature } = signRes.body;
 
-  // 5. Descega la firma: S = S' * r⁻¹ mod n = hash^d
+  // Descega la firma: S = S' * r⁻¹ mod n = hash^d
   const rInv = modInv(r, publicKey.n);
   signature  = (BigInt(blindSignature) * rInv) % publicKey.n;
 
@@ -140,25 +170,24 @@ async function opcionEnviarFirma() {
 
   console.log(`\n── Enviando firma para ID: ${currentId} ──`);
 
-  const res = await fetch(`${SERVER}/verify-signature`, {
+  const res = await coapRequest({
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({
+    path:    '/verify-signature',
+    payload: {
       id:        currentId,
-      signature: signature.toString()
-    }),
+      signature: signature.toString(),
+    },
   });
 
-  const result = await res.json();
+  const result = res.body;
 
   if (res.ok) {
     console.log(`\nID registrado correctamente: ${result.registered}\n`);
-    // Limpiamos estado para no reutilizar la misma firma
     signature = null;
     currentId = null;
-  } else if (res.status === 409) {
+  } else if (res.code === '4.09') {
     console.error(`\nID ya registrado — no válido: ${result.error}\n`);
-  } else if (res.status === 401) {
+  } else if (res.code === '4.01') {
     console.error(`\nFirma inválida: ${result.error}\n`);
   } else {
     console.error(`\nError: ${result.error}\n`);
