@@ -11,19 +11,28 @@ const KEY_BITS       = 512;
 const DATA_FILE      = 'sensor-data.json';
 const IDS_FILE       = 'signed-ids.json';
 const SENSORS_FILE   = 'sensors.json';
-const SENSOR_KEYS_FILE = 'sensor-keys.json';
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 // ── Claves ─────────────────────────────────────────────────────────────────
-let publicKey     = null;   // Paillier pública
-let privateKey    = null;   // Paillier privada
-let publicKeyRSA  = null;   // RSA pública  (firma ciega + autenticación sensores)
-let privateKeyRSA = null;   // RSA privada
+let publicKey     = null;
+let privateKey    = null;
+let publicKeyRSA  = null;
+let privateKeyRSA = null;
 
-// Sesiones activas de sensores: { sessionId → { sensorId, challenge, verified } }
+// Sesiones activas: { sessionId → { sensorId, challenge, verified } }
 const sessions = new Map();
+
+// ── Credenciales del sensor único ─────────────────────────────────────────
+// Debe coincidir con SENSOR en sensor-client.js
+const SENSOR_CREDENTIALS = {
+  'sensor-001': 'secret123',
+};
 
 // ── Usuarios para cliente firma ciega ─────────────────────────────────────
 const USERS = {
@@ -40,7 +49,10 @@ async function loadData() {
   catch { return {}; }
 }
 async function saveData(data) {
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  const safe = JSON.stringify(data, (_, v) =>
+    typeof v === 'bigint' ? Number(v) : v
+  , 2);
+  await fs.writeFile(DATA_FILE, safe, 'utf-8');
 }
 async function loadIds() {
   try { return JSON.parse(await fs.readFile(IDS_FILE, 'utf-8')); }
@@ -48,17 +60,6 @@ async function loadIds() {
 }
 async function saveIds(ids) {
   await fs.writeFile(IDS_FILE, JSON.stringify(ids, null, 2), 'utf-8');
-}
-async function loadSensors() {
-  try { return JSON.parse(await fs.readFile(SENSORS_FILE, 'utf-8')); }
-  catch { return []; }
-}
-async function loadSensorKeys() {
-  try { return JSON.parse(await fs.readFile(SENSOR_KEYS_FILE, 'utf-8')); }
-  catch { return {}; }
-}
-async function saveSensorKeys(keys) {
-  await fs.writeFile(SENSOR_KEYS_FILE, JSON.stringify(keys, null, 2), 'utf-8');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -94,12 +95,11 @@ function generateSessionId() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENDPOINTS — CLIENTE FIRMA CIEGA (sin cambios respecto al original)
+// ENDPOINTS — CLIENTE FIRMA CIEGA (sin cambios)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Entrega clave pública RSA tras autenticar usuario humano
 app.post('/rsa-public-key', (req, res) => {
-  const username = req.body.username; 
+  const username = req.body.username;
   const password = req.body.password;
 
   if (!username || !password)
@@ -114,7 +114,6 @@ app.post('/rsa-public-key', (req, res) => {
   res.json({ n: publicKeyRSA.n.toString(), e: publicKeyRSA.e.toString() });
 });
 
-// Firma ciega para usuario humano
 app.post('/blind-sign', (req, res) => {
   const { blindedMessage } = req.body;
   if (!blindedMessage)
@@ -125,7 +124,6 @@ app.post('/blind-sign', (req, res) => {
   res.json({ blindSignature: blindSignature.toString() });
 });
 
-// Verifica firma de usuario humano y registra ID
 app.post('/verify-signature', async (req, res) => {
   const { id, signature } = req.body;
   if (!id || !signature)
@@ -159,11 +157,12 @@ app.post('/verify-signature', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENDPOINTS — PAILLIER (sensores via agregador, sin cambios)
+// ENDPOINTS — PAILLIER
 // ═══════════════════════════════════════════════════════════════════════════
+
 app.get('/hello', (req, res) => {
-  res.send("helloasdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffasdfasdfffffffffffffffffffffffffffffffffffffffffffffasdfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-})
+  res.send("hello");
+});
 
 app.get('/paillier-public-key', (req, res) => {
   if (!publicKey)
@@ -196,7 +195,13 @@ app.post('/paillier-decrypt', async (req, res) => {
       console.log(`[PAILLIER] Individual: ${sensorType} | ${consumption} | ${hour}`);
     }
 
-    await saveData(data);
+    
+    try {
+  await saveData(data);
+  console.log('[SAVE] OK');
+} catch (err) {
+  console.error('[SAVE] ERROR:', err);
+}
     res.json({ ok: true });
 
   } catch (err) {
@@ -206,33 +211,33 @@ app.post('/paillier-decrypt', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENDPOINTS — SENSORES BLIND (autenticación mutua + firma ciega)
+// ENDPOINTS — SENSORES BLIND (modificados: sin sensors.json ni sensor-keys.json)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// PASO 1: Registro del sensor — verifica credenciales, guarda clave pública,
-//         genera challenge cifrado y prueba identidad del servidor
-app.post('/sensor/register', async (req, res) => {
+// Mapa en memoria de claves públicas recibidas de sensores registrados
+// { sensorId → { n, e } }
+const registeredSensorKeys = new Map();
+
+// PASO 1: Registro del sensor
+// Verifica credenciales en memoria, guarda clave pública en memoria,
+// genera challenge cifrado con la clave pública del sensor,
+// y prueba identidad del servidor firmando hash(sessionId).
+app.post('/sensor/register', (req, res) => {
   const { id, password, publicKeyN, publicKeyE } = req.body;
 
   if (!id || !password || !publicKeyN || !publicKeyE)
     return res.status(400).json({ error: 'Faltan campos: id, password, publicKeyN, publicKeyE' });
 
-  // Verifica credenciales contra sensors.json
-  const sensors = await loadSensors();
-  const sensor  = sensors.find(s => s.id === id);
-
-  if (!sensor || sensor.password !== password) {
+  // Verifica credenciales contra el mapa en memoria
+  if (SENSOR_CREDENTIALS[id] !== password) {
     console.log(`[SENSOR AUTH] Credenciales inválidas — id: ${id}`);
     return res.status(401).json({ error: 'Credenciales inválidas' });
   }
 
-  // Guarda/actualiza clave pública del sensor
-  const sensorKeys = await loadSensorKeys();
-  sensorKeys[id] = { n: publicKeyN, e: publicKeyE };
-  await saveSensorKeys(sensorKeys);
+  // Guarda/actualiza clave pública del sensor en memoria
+  registeredSensorKeys.set(id, { n: publicKeyN, e: publicKeyE });
 
   // Genera challenge y lo cifra con la clave pública del sensor
-  // Solo el sensor legítimo (clave privada) puede descifrarlo
   const challengeRaw    = crypto.randomBytes(16).toString('hex');
   const challengeBigInt = BigInt('0x' + challengeRaw);
   const encryptedChallenge = modPow(
@@ -249,9 +254,9 @@ app.post('/sensor/register', async (req, res) => {
     verified:  false,
   });
 
-  // Prueba de identidad del servidor: firma hash(sessionId) con su clave RSA privada
-  const sessionHashHex = crypto.createHash('sha256').update(sessionId).digest('hex');
-  const sessionHashBI  = BigInt('0x' + sessionHashHex) % publicKeyRSA.n;
+  // Prueba de identidad del servidor: firma hash(sessionId)
+  const sessionHashHex  = crypto.createHash('sha256').update(sessionId).digest('hex');
+  const sessionHashBI   = BigInt('0x' + sessionHashHex) % publicKeyRSA.n;
   const serverSignature = privateKeyRSA.sign(sessionHashBI);
 
   console.log(`[SENSOR AUTH] Credenciales OK — id: ${id} | sesión: ${sessionId}`);
@@ -263,7 +268,7 @@ app.post('/sensor/register', async (req, res) => {
   });
 });
 
-// PASO 2: El sensor responde al challenge — verifica identidad del sensor
+// PASO 2: El sensor responde al challenge
 app.post('/sensor/verify-challenge', (req, res) => {
   const { sessionId, challengeResponse } = req.body;
 
@@ -288,7 +293,6 @@ app.post('/sensor/verify-challenge', (req, res) => {
 });
 
 // PASO 3: Firma ciega de la clave efímera del sensor
-// El servidor firma ciegamente sin saber qué clave efímera es de qué sensor
 app.post('/sensor/blind-sign-ephemeral', (req, res) => {
   const { sessionId, blindedEphemeralHash } = req.body;
 
@@ -301,16 +305,18 @@ app.post('/sensor/blind-sign-ephemeral', (req, res) => {
   if (!session.verified)
     return res.status(403).json({ error: 'Canal no verificado — completa el reto primero' });
 
-  // S' = blindedHash^d mod n  (firma ciega)
   const blindSignature = privateKeyRSA.sign(BigInt(blindedEphemeralHash));
   console.log(`[BLIND SIGN] Clave efímera firmada ciegamente — sensor: ${session.sensorId}`);
+
+  // La sesión ya cumplió su propósito: se elimina para no acumular estado
+  sessions.delete(sessionId);
 
   res.json({ blindSignature: blindSignature.toString() });
 });
 
 // PASO 4: Envío anónimo de consumo
-// El servidor solo verifica que la firma efímera es válida (emitida por él mismo)
-// y guarda por zona/hora sin saber de qué sensor exactamente viene
+// Solo verifica que la firma efímera es válida (emitida por este servidor).
+// No hay rastro del sensor de origen.
 app.post('/sensor/consumption', async (req, res) => {
   const { ciphertext, zone, ephemeralSignature, ephemeralPubKeyHashHex } = req.body;
 
@@ -318,7 +324,7 @@ app.post('/sensor/consumption', async (req, res) => {
     return res.status(400).json({ error: 'Faltan campos requeridos' });
 
   try {
-    // Verifica firma efímera: verify(S) = S^e mod n debe coincidir con hash
+    // Verifica firma efímera
     const hashBigInt = BigInt('0x' + ephemeralPubKeyHashHex) % publicKeyRSA.n;
     const recovered  = publicKeyRSA.verify(BigInt(ephemeralSignature));
 
@@ -327,12 +333,11 @@ app.post('/sensor/consumption', async (req, res) => {
       return res.status(401).json({ error: 'Firma efímera inválida' });
     }
 
-    // Descifra el consumo con Paillier
+    // Descifra y guarda por zona/hora
     const m = privateKey.decrypt(BigInt(ciphertext));
     const { consumption, timestamp } = unpackMessage(m);
     const hour = hourKey(timestamp);
 
-    // Guarda por zona/hora — sin rastro del sensor
     const data = await loadData();
     if (!data.zones)             data.zones = {};
     if (!data.zones[zone])       data.zones[zone] = {};
@@ -369,16 +374,7 @@ async function main() {
   app.listen(PORT, () => {
     console.log(`Servidor escuchando en http://localhost:${PORT}`);
     console.log(`Usuarios válidos (cliente): ${Object.keys(USERS).join(', ')}`);
-    console.log(`Endpoints activos:`);
-    console.log(`  GET  /rsa-public-key          — cliente firma ciega`);
-    console.log(`  POST /blind-sign              — cliente firma ciega`);
-    console.log(`  POST /verify-signature        — cliente firma ciega`);
-    console.log(`  GET  /paillier-public-key     — sensores/agregador`);
-    console.log(`  POST /paillier-decrypt        — sensores/agregador`);
-    console.log(`  POST /sensor/register         — blind sensors`);
-    console.log(`  POST /sensor/verify-challenge — blind sensors`);
-    console.log(`  POST /sensor/blind-sign-ephemeral — blind sensors`);
-    console.log(`  POST /sensor/consumption      — blind sensors\n`);
+    console.log(`Sensor registrado: ${Object.keys(SENSOR_CREDENTIALS).join(', ')}`);
   });
 }
 

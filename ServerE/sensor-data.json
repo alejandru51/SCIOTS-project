@@ -1,109 +1,50 @@
 {
   "zones": {
     "Parque de las Moscas": {
-      "2026-05-07T08:00:00.000Z": [
+      "2026-05-24T06:00:00.000Z": [
         {
-          "consumption": 129829,
+          "consumption": 690583929414,
           "count": 100,
-          "sentAt": "2026-05-07T08:22:28.833Z"
+          "sentAt": "2026-05-24T06:46:16.897Z"
         },
         {
-          "consumption": 12424,
+          "consumption": 190975431749,
           "count": 100,
-          "sentAt": "2026-05-07T08:22:30.702Z"
+          "sentAt": "2026-05-24T06:46:29.810Z"
         },
         {
-          "consumption": 136368,
+          "consumption": 350160372104,
           "count": 100,
-          "sentAt": "2026-05-07T08:22:52.077Z"
+          "sentAt": "2026-05-24T06:46:46.085Z"
         },
         {
-          "consumption": 42674,
+          "consumption": 704423356188,
           "count": 100,
-          "sentAt": "2026-05-07T08:23:00.703Z"
-        },
-        {
-          "consumption": 132987,
-          "count": 100,
-          "sentAt": "2026-05-07T08:23:22.537Z"
-        },
-        {
-          "consumption": 71699,
-          "count": 100,
-          "sentAt": "2026-05-07T08:23:30.704Z"
-        },
-        {
-          "consumption": 52640,
-          "count": 100,
-          "sentAt": "2026-05-07T08:29:33.643Z"
-        },
-        {
-          "consumption": 133096,
-          "count": 100,
-          "sentAt": "2026-05-07T08:29:56.264Z"
-        },
-        {
-          "consumption": 32898,
-          "count": 100,
-          "sentAt": "2026-05-07T08:30:03.642Z"
-        }
-      ],
-      "2026-05-11T16:00:00.000Z": [
-        {
-          "consumption": 116340,
-          "count": 100,
-          "sentAt": "2026-05-11T16:49:04.495Z"
-        },
-        {
-          "consumption": 140820,
-          "count": 100,
-          "sentAt": "2026-05-11T16:49:25.823Z"
-        },
-        {
-          "consumption": 51987,
-          "count": 100,
-          "sentAt": "2026-05-11T16:49:34.488Z"
+          "sentAt": "2026-05-24T06:47:00.361Z"
         }
       ]
     },
     "El barrio": {
-      "2026-05-07T08:00:00.000Z": [
+      "2026-05-24T06:00:00.000Z": [
         {
-          "consumption": 73306,
+          "consumption": 464578172408,
           "count": 100,
-          "sentAt": "2026-05-07T08:22:30.778Z"
+          "sentAt": "2026-05-24T06:46:23.231Z"
         },
         {
-          "consumption": 96531,
+          "consumption": 355831110040,
           "count": 100,
-          "sentAt": "2026-05-07T08:23:00.779Z"
+          "sentAt": "2026-05-24T06:46:29.817Z"
         },
         {
-          "consumption": 76702,
+          "consumption": 1030951174065,
           "count": 100,
-          "sentAt": "2026-05-07T08:23:30.782Z"
+          "sentAt": "2026-05-24T06:46:51.906Z"
         },
         {
-          "consumption": 32919,
+          "consumption": 242187137834,
           "count": 100,
-          "sentAt": "2026-05-07T08:29:33.721Z"
-        },
-        {
-          "consumption": 70330,
-          "count": 100,
-          "sentAt": "2026-05-07T08:30:03.715Z"
-        }
-      ],
-      "2026-05-11T16:00:00.000Z": [
-        {
-          "consumption": 44996,
-          "count": 100,
-          "sentAt": "2026-05-11T16:49:04.414Z"
-        },
-        {
-          "consumption": 79638,
-          "count": 100,
-          "sentAt": "2026-05-11T16:49:34.415Z"
+          "sentAt": "2026-05-24T06:47:00.376Z"
         }
       ]
     }
