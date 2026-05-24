@@ -353,4 +353,117 @@ router.post('/token', (req, res) => {
   res.json({ access_token: accessToken, token_type: 'Bearer', expires_in: 3600 });
 });
 
+// ══════════════════════════════════════════════════════════════════
+// POST /authserver/blind-sign
+//
+// Firma ciega RSA-Chaum (último paso del flujo de autorización).
+//
+// El dispositivo envía un token cegado:
+//   m' = m · rᵉ mod n   (cegado con factor aleatorio r en el cliente)
+//
+// El servidor calcula:
+//   s' = (m')ᵈ mod n    (firma RSA estándar sobre el token cegado)
+//
+// El servidor NUNCA ve el mensaje original m.
+// El dispositivo desciega con:
+//   s = s' · r⁻¹ mod n  → firma RSA válida de m verificable con (e, n)
+// ══════════════════════════════════════════════════════════════════
+router.post('/blind-sign', (req, res) => {
+  const { requestId, blindedToken } = req.body;
+
+  // ── Validación de sesión ────────────────────────────────────────
+  // Autenticación: sesión de admin (navegador) O token Bearer (dispositivo)
+  const authHeader = req.headers['authorization'];
+  const hasSession = !!req.session.authenticatedUser;
+  const hasBearer  = !!(authHeader && authHeader.startsWith('Bearer '));
+
+  if (!hasSession && !hasBearer) {
+    if (req.headers['accept'] === 'application/json' ||
+        (req.headers['content-type'] || '').includes('application/json')) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Se requiere sesión de admin o token Bearer' });
+    }
+    return res.status(401).sendFile(join(VIEWS_DIR, 'error.html'));
+  }
+
+  if (!requestId || !blindedToken) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      message: 'Se requieren requestId y blindedToken'
+    });
+  }
+
+  // ── Leer clave privada del servidor ────────────────────────────
+  let privKeyRaw;
+  try {
+    privKeyRaw = readJSON(PRIV_KEY_FILE, null);
+    if (!privKeyRaw) throw new Error('Clave privada no encontrada');
+  } catch (err) {
+    console.error('[BlindSign] Error leyendo clave privada:', err.message);
+    return res.status(500).json({ error: 'server_error', message: 'Clave privada no disponible' });
+  }
+
+  // ── Calcular firma ciega: s' = (m')ᵈ mod n ─────────────────────
+  let blindSignature;
+  try {
+    const n = BigInt(privKeyRaw.n);
+    const d = BigInt(privKeyRaw.d);
+    const mPrime = BigInt(blindedToken);
+
+    // Verificar que m' < n (requisito RSA)
+    if (mPrime >= n) {
+      return res.status(400).json({
+        error: 'invalid_token',
+        message: 'El token cegado debe ser menor que el módulo n'
+      });
+    }
+
+    // s' = pow(m', d, n)  — modular exponentiation con BigInt nativo
+    blindSignature = modPow(mPrime, d, n).toString();
+  } catch (err) {
+    console.error('[BlindSign] Error calculando firma ciega:', err.message);
+    return res.status(400).json({ error: 'blind_sign_error', message: 'blindedToken inválido' });
+  }
+
+  console.log(`[AuthServer] Firma ciega generada para requestId: ${requestId}`);
+
+  // ── Respuesta ───────────────────────────────────────────────────
+  // Si la petición espera JSON (API directa desde el dispositivo)
+  if (req.headers['accept'] === 'application/json' ||
+      req.headers['content-type'] === 'application/json') {
+    return res.json({
+      status:        'ok',
+      requestId,
+      blindSignature,
+      description:   "s' = (m')^d mod n — descegar con s = s' * r^-1 mod n"
+    });
+  }
+
+  // Si viene del navegador (botón en consent.html) → renderizar vista HTML
+  const pubKeyRaw = readJSON(PUB_KEY_FILE, {});
+  let html = readFileSync(join(VIEWS_DIR, 'blind-sign-result.html'), 'utf8');
+  html = html
+    .replace(/\{\{REQUEST_ID\}\}/g,    requestId)
+    .replace(/\{\{BLINDED_TOKEN\}\}/g, blindedToken)
+    .replace('{{BLIND_SIGNATURE}}',    blindSignature)
+    .replace('{{RSA_N}}',              pubKeyRaw.n   || '')
+    .replace('{{RSA_E}}',              pubKeyRaw.e   || '')
+    .replace('{{RSA_D}}',              privKeyRaw.d  || '')
+    .replace('{{USER}}',               req.session.authenticatedUser || '');
+  res.send(html);
+});
+
+// ── Helper interno: exponenciación modular con BigInt nativo ──────
+// Evita depender de librerías externas para esta operación simple.
+// base^exp mod mod  (todos BigInt)
+function modPow(base, exp, mod) {
+  let result = 1n;
+  base = base % mod;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) result = result * base % mod;
+    exp = exp / 2n;
+    base = base * base % mod;
+  }
+  return result;
+}
+
 export default router;

@@ -170,6 +170,10 @@ function initViews() {
     .key-preview { font-family: monospace; font-size: .78rem; word-break: break-all; background: #1a1a2e; color: #00ff88; padding: 10px; border-radius: 6px; }
     .btn-approve { background: linear-gradient(135deg, #2d6a4f, #1b4332); border: none; }
     .btn-reject  { background: linear-gradient(135deg, #e94560, #c23152); border: none; }
+    .blind-section { background: #0f1b2d; border: 1px solid #1e3a5f; border-radius: 10px; }
+    .blind-section .section-title { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: #58a6ff; font-weight: 700; }
+    .blind-token-box { font-family: monospace; font-size: .72rem; word-break: break-all; background: #070d1a; color: #f0c040; padding: 10px; border-radius: 6px; border: 1px solid #2a3f60; max-height: 80px; overflow-y: auto; }
+    .badge-blind { background: #1e3a5f; color: #58a6ff; font-size: .65rem; font-family: monospace; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -201,6 +205,35 @@ function initViews() {
             <strong>⚠️ ¿Autorizar este dispositivo?</strong><br>
             <small>Al aprobar, el dispositivo recibirá credenciales RSA para enviar métricas protegidas al servidor.</small>
           </div>
+
+          <!-- ── FIRMA CIEGA RSA-Chaum ── -->
+          <div class="blind-section p-3 mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="section-title">🔏 Firma Ciega (RSA-Chaum)</span>
+              <span class="badge badge-blind">POST /authserver/blind-sign</span>
+            </div>
+            <p class="text-secondary mb-2" style="font-size:.8rem;">
+              Introduce el token cegado <code>m' = m·r<sup>e</sup> mod n</code> generado por el dispositivo.
+              El servidor calculará <code>s' = (m')ᵈ mod n</code> sin conocer el mensaje original <code>m</code>.
+            </p>
+            <form method="POST" action="/authserver/blind-sign">
+              <input type="hidden" name="requestId" value="{{REQUEST_ID}}">
+              <div class="mb-2">
+                <label class="text-muted" style="font-size:.72rem; font-weight:600;">TOKEN CEGADO (m')</label>
+                <input type="text" name="blindedToken" class="form-control form-control-sm mt-1"
+                       style="font-family:monospace;font-size:.75rem;background:#070d1a;color:#f0c040;border:1px solid #2a3f60;"
+                       placeholder="Número decimal del token cegado por el dispositivo" required>
+              </div>
+              <div class="d-flex justify-content-end mt-2">
+                <button type="submit" class="btn btn-sm text-white fw-bold"
+                        style="background:linear-gradient(135deg,#1e3a5f,#0f3460);border:1px solid #2a5298;">
+                  🔏 Firmar a ciegas
+                </button>
+              </div>
+            </form>
+          </div>
+          <!-- ── /FIRMA CIEGA ── -->
+
           <div class="row g-3">
             <div class="col-6">
               <form method="POST" action="/authserver/approve">
@@ -243,10 +276,84 @@ function initViews() {
 </body>
 </html>`;
 
+  const blindSignResultHTML = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Auth — Firma Ciega</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); min-height: 100vh; display: flex; align-items: center; }
+    .card { border: none; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+    .card-header { background: linear-gradient(135deg, #1e3a5f, #0f3460); border-radius: 16px 16px 0 0 !important; }
+    .key-preview  { font-family: monospace; font-size: .78rem; word-break: break-all; background: #1a1a2e; color: #00ff88; padding: 10px; border-radius: 6px; }
+    .token-box    { font-family: monospace; font-size: .72rem; word-break: break-all; background: #070d1a; color: #f0c040; padding: 10px; border-radius: 6px; border: 1px solid #2a3f60; max-height: 100px; overflow-y: auto; }
+    .step-label   { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: #58a6ff; font-weight: 700; }
+    .step-row     { background: #0f1b2d; border: 1px solid #1e3a5f; border-radius: 8px; }
+    .badge-blind  { background: #1e3a5f; color: #58a6ff; font-size: .65rem; font-family: monospace; }
+    .btn-back     { background: linear-gradient(135deg, #2d6a4f, #1b4332); border: none; }
+    .formula      { font-family: monospace; font-size: .82rem; background: #070d1a; color: #c9d1d9; padding: 8px 12px; border-radius: 6px; border-left: 3px solid #58a6ff; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+      <div class="card">
+        <div class="card-header text-white text-center py-4">
+          <h4 class="mb-1">🔏 Resultado de Firma Ciega</h4>
+          <small class="opacity-75">RSA-Chaum Blind Signature &nbsp;·&nbsp; Sesión: <strong>{{USER}}</strong></small><br>
+          <span class="badge badge-blind mt-1">POST /authserver/blind-sign</span>
+        </div>
+        <div class="card-body p-4">
+          <div class="alert alert-info mb-4" style="background:#0f1b2d;border:1px solid #1e3a5f;color:#c9d1d9;">
+            <strong style="color:#58a6ff;">¿Qué acaba de ocurrir?</strong><br>
+            <small>El servidor calculó <code>s' = (m')ᵈ mod n</code> sobre el token cegado.
+            El dispositivo puede descegar con <code>s = s' · r⁻¹ mod n</code> y obtiene una firma RSA válida
+            de <code>m</code> que el servidor <strong>nunca vio</strong>.</small>
+          </div>
+          <div class="step-row p-3 mb-3">
+            <div class="step-label mb-1">① Token cegado recibido &nbsp;<code style="font-size:.65rem;color:#f0c040;">m'</code></div>
+            <div class="token-box">{{BLINDED_TOKEN}}</div>
+          </div>
+          <div class="step-row p-3 mb-3">
+            <div class="step-label mb-2">② Operación ejecutada en el servidor</div>
+            <div class="formula">s' = pow(m', d, n)</div>
+          </div>
+          <div class="step-row p-3 mb-4">
+            <div class="step-label mb-1">③ Firma ciega resultante &nbsp;<code style="font-size:.65rem;color:#00ff88;">s' = (m')ᵈ mod n</code></div>
+            <div class="key-preview">{{BLIND_SIGNATURE}}</div>
+          </div>
+          <div class="alert mb-4" style="background:#1b2f1b;border:1px solid #2d6a4f;color:#c9d1d9;">
+            <strong style="color:#00ff88;">➜ Siguiente paso (en el dispositivo)</strong><br>
+            <small>Calcular: <code>s = s' · r⁻¹ mod n</code> &nbsp;→&nbsp; Verificar: <code>sᵉ mod n == m</code></small>
+          </div>
+          <div class="row g-3">
+            <div class="col-6">
+              <a href="/authserver/consent?requestId={{REQUEST_ID}}" class="btn btn-back btn-lg text-white w-100 fw-bold">← Volver</a>
+            </div>
+            <div class="col-6">
+              <form method="POST" action="/authserver/approve">
+                <input type="hidden" name="requestId" value="{{REQUEST_ID}}">
+                <button type="submit" class="btn btn-lg text-white w-100 fw-bold"
+                        style="background:linear-gradient(135deg,#2d6a4f,#1b4332);border:none;">✅ Aprobar dispositivo</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+
   const views = {
-    'login.html':   loginHTML,
-    'consent.html': consentHTML,
-    'error.html':   errorHTML
+    'login.html':             loginHTML,
+    'consent.html':           consentHTML,
+    'error.html':             errorHTML,
+    'blind-sign-result.html': blindSignResultHTML
   };
 
   Object.entries(views).forEach(([name, html]) => {

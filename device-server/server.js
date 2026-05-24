@@ -345,6 +345,146 @@ app.post('/reset', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
+// POST /blind-sign-demo — Demostración de firma ciega RSA-Chaum
+//
+// El dispositivo actúa como cliente del esquema:
+//  1. Genera mensaje m = hash del deviceId + timestamp
+//  2. Obtiene clave pública del servidor (n, e)
+//  3. Genera factor ciego aleatorio r  (0 < r < n, gcd(r,n)=1)
+//  4. Ciega:   m' = m * pow(r, e, n) mod n
+//  5. Envía m' al auth-server → POST /authserver/blind-sign
+//  6. Recibe firma ciega s'
+//  7. Desciega: s = s' * modInverse(r, n) mod n
+//  8. Verifica: pow(s, e, n) == m
+// ══════════════════════════════════════════════════════════════════
+app.post('/blind-sign-demo', async (req, res) => {
+  addLog('🔏 Iniciando demostración de firma ciega RSA-Chaum...');
+
+  // ── 1. Necesitamos sesión activa en el auth-server ──────────────
+  const tokenData = readJSON(TOKEN_FILE);
+  if (!tokenData) {
+    addLog('Firma ciega: se necesita token JWT activo.', 'error');
+    return res.redirect('/');
+  }
+
+  // ── 2. Obtener clave pública del auth-server ────────────────────
+  const authPubKey = readJSON(AUTH_PUB_KEY_FILE);
+  if (!authPubKey) {
+    addLog('Firma ciega: clave pública del servidor no encontrada.', 'error');
+    return res.redirect('/');
+  }
+
+  try {
+    const n = BigInt(authPubKey.n);
+    const e = BigInt(authPubKey.e);
+
+    // ── 3. Mensaje m: hash del deviceId + timestamp → BigInt ──────
+    // Usamos un número representativo pequeño para la demo (< n)
+    const msgStr = `${DEVICE_ID}:${Date.now()}`;
+    const msgBuf  = Buffer.from(msgStr, 'utf8');
+    // Convertir a BigInt (big-endian)
+    let m = 0n;
+    for (const byte of msgBuf) m = (m << 8n) | BigInt(byte);
+    // Asegurar m < n
+    m = m % n;
+    addLog(`🔏 Mensaje original m (primeros 40 chars): ${m.toString().substring(0, 40)}...`);
+
+    // ── 4. Generar factor ciego r aleatorio (0 < r < n) ───────────
+    // Para la demo usamos un BigInt aleatorio de 256 bits
+    const rBytes = new Uint8Array(32);
+    crypto.getRandomValues(rBytes);
+    let r = 0n;
+    for (const byte of rBytes) r = (r << 8n) | BigInt(byte);
+    r = (r % (n - 2n)) + 2n; // 2 ≤ r < n
+
+    // ── 5. Cegar: m' = m * pow(r, e, n) mod n ────────────────────
+    const rE     = modPow(r, e, n);
+    const mPrime = (m * rE) % n;
+    addLog(`🔏 Token cegado m' generado (primeros 40 chars): ${mPrime.toString().substring(0, 40)}...`);
+
+    // ── 6. Enviar m' al auth-server para firma ciega ───────────────
+    // El auth-server requiere sesión activa; usamos la requestId guardada
+    // o indicamos al usuario que lo haga desde el panel del auth-server.
+    // Aquí llamamos directamente al endpoint JSON.
+    const blindResp = await fetch(`${AUTH_SERVER_URL}/authserver/blind-sign`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept':       'application/json',
+        // Pasamos el token Bearer para identificar el dispositivo
+        'Authorization': `Bearer ${tokenData.access_token}`
+      },
+      body: JSON.stringify({
+        requestId:    DEVICE_ID + '-blind-demo',
+        blindedToken: mPrime.toString()
+      })
+    });
+
+    if (!blindResp.ok) {
+      const errData = await blindResp.json().catch(() => ({}));
+      // Si el servidor rechaza por sesión (requiere login de admin),
+      // mostramos instrucción al usuario
+      addLog(`⚠️  El auth-server requiere sesión de administrador activa para firmar a ciegas.`, 'warn');
+      addLog(`ℹ️  Ve a ${AUTH_SERVER_URL}/authserver/login, inicia sesión y vuelve a pulsar el botón.`, 'warn');
+      return res.redirect('/');
+    }
+
+    const blindData = await blindResp.json();
+    const sPrime = BigInt(blindData.blindSignature);
+    addLog(`🔏 Firma ciega s' recibida (primeros 40 chars): ${sPrime.toString().substring(0, 40)}...`, 'success');
+
+    // ── 7. Descegar: s = s' * modInverse(r, n) mod n ─────────────
+    const rInv = modInverse(r, n);
+    const s    = (sPrime * rInv) % n;
+    addLog(`🔏 Firma descegada s (primeros 40 chars): ${s.toString().substring(0, 40)}...`, 'success');
+
+    // ── 8. Verificar: pow(s, e, n) == m ──────────────────────────
+    const recovered = modPow(s, e, n);
+    const valid     = recovered === m;
+
+    if (valid) {
+      addLog('✅ FIRMA CIEGA VERIFICADA: pow(s, e, n) == m ✅', 'success');
+      addLog('El servidor firmó el token SIN ver el mensaje original m.', 'success');
+    } else {
+      addLog('❌ Verificación fallida: pow(s, e, n) ≠ m', 'error');
+    }
+
+  } catch (err) {
+    addLog(`Error en firma ciega: ${err.message}`, 'error');
+    console.error('[BlindSign]', err);
+  }
+
+  res.redirect('/');
+});
+
+// ── Helpers BigInt para firma ciega ───────────────────────────────
+
+// Exponenciación modular: base^exp mod mod
+function modPow(base, exp, mod) {
+  let result = 1n;
+  base = base % mod;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) result = result * base % mod;
+    exp = exp / 2n;
+    base = base * base % mod;
+  }
+  return result;
+}
+
+// Inverso modular con algoritmo extendido de Euclides: a^-1 mod m
+function modInverse(a, m) {
+  let [old_r, r] = [a, m];
+  let [old_s, s] = [1n, 0n];
+  while (r !== 0n) {
+    const q = old_r / r;
+    [old_r, r] = [r, old_r - q * r];
+    [old_s, s] = [s, old_s - q * s];
+  }
+  if (old_r !== 1n) throw new Error('No existe inverso modular (gcd ≠ 1)');
+  return ((old_s % m) + m) % m;
+}
+
+// ══════════════════════════════════════════════════════════════════
 // GET /api/status — Estado JSON para polling desde UI
 // ══════════════════════════════════════════════════════════════════
 app.get('/api/status', (req, res) => {
@@ -471,6 +611,15 @@ function buildDashboard({ isReg, hasToken, isSending, token, sensorCert }) {
          <button class="btn btn-warning btn-lg">⏹ Detener métricas</button>
        </form>` : '';
 
+  const btnBlindSign = isSending
+    ? `<form method="POST" action="/blind-sign-demo" class="d-inline ms-2">
+         <button class="btn btn-lg fw-bold"
+                 style="background:linear-gradient(135deg,#1e3a5f,#0f3460);border:1px solid #2a5298;color:#58a6ff;"
+                 title="Firma ciega RSA-Chaum: el servidor firma sin ver el mensaje">
+           🔏 Firma Ciega (RSA-Chaum)
+         </button>
+       </form>` : '';
+
   const certHTML = sensorCert
     ? `<div class="font-monospace small text-success bg-dark p-3 rounded" style="word-break:break-all;max-height:140px;overflow-y:auto">
          <div><b class="text-white">deviceId:</b> ${sensorCert.payload.deviceId}</div>
@@ -498,7 +647,8 @@ function buildDashboard({ isReg, hasToken, isSending, token, sensorCert }) {
     { label: '1. Registro',    done: isReg || hasToken || isSending },
     { label: '2. Sensor Cert', done: isReg },
     { label: '3. JWT',         done: hasToken },
-    { label: '4. Métricas',    done: isSending }
+    { label: '4. Métricas',    done: isSending },
+    { label: '5. Firma Ciega', done: isSending }
   ];
   const stepsHTML = steps.map(s =>
     `<div class="col text-center">
@@ -555,6 +705,7 @@ function buildDashboard({ isReg, hasToken, isSending, token, sensorCert }) {
           ${btnRegister}
           ${btnToken}
           ${btnStop}
+          ${btnBlindSign}
           <form method="POST" action="/reset" class="ms-auto">
             <button class="btn btn-outline-danger btn-sm" onclick="return confirm('¿Resetear todos los datos del dispositivo?')">
               🗑 Reset
