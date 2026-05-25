@@ -143,7 +143,7 @@ router.post('/register-device', (req, res) => {
 
   console.log(`[AuthServer] Device ${deviceId} validado. RequestId: ${requestId}`);
   req.session.pendingRequestId = requestId;
-  res.redirect(`${AUTH_SERVER_URL}/authserver/login?requestId=${requestId}`); // ← CORREGIDO
+  res.redirect(`${AUTH_SERVER_URL}/authserver/login?requestId=${requestId}`);
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -371,12 +371,18 @@ router.post('/token', (req, res) => {
 router.post('/blind-sign', (req, res) => {
   const { requestId, blindedToken } = req.body;
 
-  // ── Validación de sesión ────────────────────────────────────────
-  // Autenticación: sesión de admin (navegador) O token Bearer (dispositivo)
+  // ── Validación de sesión ───────────────────────────────────────
   const authHeader = req.headers['authorization'];
   const hasSession = !!req.session.authenticatedUser;
-  const hasBearer  = !!(authHeader && authHeader.startsWith('Bearer '));
-
+  let hasBearer = false;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET);
+      hasBearer = true;
+    } catch {
+      return res.status(401).json({ error: 'invalid_token', message: 'Token JWT inválido o expirado' });
+    }
+  }
   if (!hasSession && !hasBearer) {
     if (req.headers['accept'] === 'application/json' ||
         (req.headers['content-type'] || '').includes('application/json')) {
@@ -387,12 +393,12 @@ router.post('/blind-sign', (req, res) => {
 
   if (!requestId || !blindedToken) {
     return res.status(400).json({
-      error: 'invalid_request',
+      error:   'invalid_request',
       message: 'Se requieren requestId y blindedToken'
     });
   }
 
-  // ── Leer clave privada del servidor ────────────────────────────
+  // ── Leer clave privada ─────────────────────────────────────────
   let privKeyRaw;
   try {
     privKeyRaw = readJSON(PRIV_KEY_FILE, null);
@@ -402,22 +408,20 @@ router.post('/blind-sign', (req, res) => {
     return res.status(500).json({ error: 'server_error', message: 'Clave privada no disponible' });
   }
 
-  // ── Calcular firma ciega: s' = (m')ᵈ mod n ─────────────────────
+  // ── Calcular firma ciega: s' = (m')^d mod n ───────────────────
   let blindSignature;
   try {
-    const n = BigInt(privKeyRaw.n);
-    const d = BigInt(privKeyRaw.d);
+    const n      = BigInt(privKeyRaw.n);
+    const d      = BigInt(privKeyRaw.d);
     const mPrime = BigInt(blindedToken);
 
-    // Verificar que m' < n (requisito RSA)
     if (mPrime >= n) {
       return res.status(400).json({
-        error: 'invalid_token',
+        error:   'invalid_token',
         message: 'El token cegado debe ser menor que el módulo n'
       });
     }
 
-    // s' = pow(m', d, n)  — modular exponentiation con BigInt nativo
     blindSignature = modPow(mPrime, d, n).toString();
   } catch (err) {
     console.error('[BlindSign] Error calculando firma ciega:', err.message);
@@ -426,10 +430,9 @@ router.post('/blind-sign', (req, res) => {
 
   console.log(`[AuthServer] Firma ciega generada para requestId: ${requestId}`);
 
-  // ── Respuesta ───────────────────────────────────────────────────
-  // Si la petición espera JSON (API directa desde el dispositivo)
+  // ── Respuesta JSON (dispositivo) ───────────────────────────────
   if (req.headers['accept'] === 'application/json' ||
-      req.headers['content-type'] === 'application/json') {
+      (req.headers['content-type'] || '').includes('application/json')) {
     return res.json({
       status:        'ok',
       requestId,
@@ -438,16 +441,17 @@ router.post('/blind-sign', (req, res) => {
     });
   }
 
-  // Si viene del navegador (botón en consent.html) → renderizar vista HTML
+  // ── Respuesta HTML (navegador/admin) ───────────────────────────
   const pubKeyRaw = readJSON(PUB_KEY_FILE, {});
   let html = readFileSync(join(VIEWS_DIR, 'blind-sign-result.html'), 'utf8');
   html = html
     .replace(/\{\{REQUEST_ID\}\}/g,    requestId)
     .replace(/\{\{BLINDED_TOKEN\}\}/g, blindedToken)
     .replace('{{BLIND_SIGNATURE}}',    blindSignature)
-    .replace('{{RSA_N}}',              pubKeyRaw.n   || '')
-    .replace('{{RSA_E}}',              pubKeyRaw.e   || '')
-    .replace('{{RSA_D}}',              privKeyRaw.d  || '')
+    .replace('{{RSA_N}}',              pubKeyRaw.n || '')
+    .replace('{{RSA_E}}',              pubKeyRaw.e || '')
+    // FIX: d nunca sale del servidor
+    .replace('{{RSA_D}}',              '[PROTEGIDO]')
     .replace('{{USER}}',               req.session.authenticatedUser || '');
   res.send(html);
 });

@@ -23,6 +23,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from '
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import fetch        from 'node-fetch';
+import { createHash,randomBytes } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 
 import {
   generateKeyPair,
@@ -55,7 +57,7 @@ const DEVICE_ID         = process.env.DEVICE_ID         || 'sensor-iot-001';
 const MANUFACTURER      = process.env.MANUFACTURER      || 'AcmeSensors';
 const ZONE              = process.env.ZONE              || 'ZoneA';
 const LOCATION          = process.env.LOCATION          || 'Building-1-Floor-2';
-
+const ANONIMOUS_ID         = process.env.ANONIMOUS_ID         || 'null';
 // ── Directorios ────────────────────────────────────────────────────
 const DATA_DIR = join(__dirname, 'data');
 const KEYS_DIR = join(__dirname, 'keys');
@@ -69,6 +71,7 @@ const MFR_CERT_FILE    = join(DATA_DIR, 'manufacturerCertificate.json');
 const DEV_PUB_FILE     = join(KEYS_DIR, 'device-public.json');
 const DEV_PRIV_FILE    = join(KEYS_DIR, 'device-private.json');
 const AUTH_PUB_KEY_FILE = join(DATA_DIR, 'authPublicKey.json');
+const EPHEMERAL_FILE = join(DATA_DIR, 'ephemeral.json');
 // ── Helpers JSON ───────────────────────────────────────────────────
 function readJSON(fp, def = null) {
   try { return existsSync(fp) ? JSON.parse(readFileSync(fp, 'utf8')) : def; }
@@ -80,6 +83,7 @@ function writeJSON(fp, data) {
 
 // ── Estado interno ─────────────────────────────────────────────────
 let metricsInterval    = null;
+let metricsBlindInterval = null;
 let DEVICE_PUBLIC_KEY_OBJ = null;  // se asigna en initKeys(), NO en top-level
 const logs = [];
 
@@ -104,8 +108,8 @@ app.get('/', (req, res) => {
   const isReg      = !!sensorCert;
   const hasToken   = !!token;
   const isSending  = metricsInterval !== null;
-
-  res.send(buildDashboard({ isReg, hasToken, isSending, token, sensorCert }));
+  const isBlind    = metricsBlindInterval !== null;
+  res.send(buildDashboard({ isReg, hasToken, isSending, isBlind, token, sensorCert }));
 });
 // ══════════════════════════════════════════════════════════════════
 // INIT KEYS — genera o carga claves RSA del dispositivo
@@ -255,7 +259,7 @@ app.get('/callback', (req, res) => {
     deviceId:     DEVICE_ID,
     publicKey:    DEVICE_PUBLIC_KEY_OBJ,
     manufacturer: mfrCert ? mfrCert.payload.manufacturer : MANUFACTURER,
-    issuedAt:     decodeURIComponent(issuedAt),  // ← usa el timestamp del auth-server
+    issuedAt:     decodeURIComponent(issuedAt),
     signedBy:     'AuthServer'
   };
 
@@ -358,96 +362,111 @@ app.post('/reset', (req, res) => {
 //  8. Verifica: pow(s, e, n) == m
 // ══════════════════════════════════════════════════════════════════
 app.post('/blind-sign-demo', async (req, res) => {
-  addLog('🔏 Iniciando demostración de firma ciega RSA-Chaum...');
+  addLog('🔏 Iniciando firma ciega RSA-Chaum...');
 
-  // ── 1. Necesitamos sesión activa en el auth-server ──────────────
   const tokenData = readJSON(TOKEN_FILE);
   if (!tokenData) {
-    addLog('Firma ciega: se necesita token JWT activo.', 'error');
+    addLog('Se necesita token JWT activo.', 'error');
     return res.redirect('/');
   }
-
-  // ── 2. Obtener clave pública del auth-server ────────────────────
-  const authPubKey = readJSON(AUTH_PUB_KEY_FILE);
-  if (!authPubKey) {
-    addLog('Firma ciega: clave pública del servidor no encontrada.', 'error');
+  const authPubKeyRaw = readJSON(AUTH_PUB_KEY_FILE);
+  if (!authPubKeyRaw) {
+    addLog('Clave pública del servidor no encontrada.', 'error');
     return res.redirect('/');
   }
 
   try {
-    const n = BigInt(authPubKey.n);
-    const e = BigInt(authPubKey.e);
+    const serverPubKey = importPublicKey(authPubKeyRaw);
+    const n = serverPubKey.n;
+    const e = serverPubKey.e;
 
-    // ── 3. Mensaje m: hash del deviceId + timestamp → BigInt ──────
-    // Usamos un número representativo pequeño para la demo (< n)
-    const msgStr = `${DEVICE_ID}:${Date.now()}`;
-    const msgBuf  = Buffer.from(msgStr, 'utf8');
-    // Convertir a BigInt (big-endian)
-    let m = 0n;
-    for (const byte of msgBuf) m = (m << 8n) | BigInt(byte);
-    // Asegurar m < n
-    m = m % n;
-    addLog(`🔏 Mensaje original m (primeros 40 chars): ${m.toString().substring(0, 40)}...`);
+    // ── 1. Claves efímeras ─────────────────────────────────────────
+    addLog('Generando claves RSA efímeras (2048 bits)...');
+    const { publicKey: ephPub, privateKey: ephPriv } = await new Promise((resolve, reject) => {
+      try { resolve(generateKeyPair(2048)); } catch (err) { reject(err); }
+    });
+    const ephPubExported  = exportPublicKey(ephPub);
+    const ephPrivExported = exportPrivateKey(ephPriv);
+    addLog('Claves efímeras generadas.', 'success');
 
-    // ── 4. Generar factor ciego r aleatorio (0 < r < n) ───────────
-    // Para la demo usamos un BigInt aleatorio de 256 bits
-    const rBytes = new Uint8Array(32);
-    crypto.getRandomValues(rBytes);
-    let r = 0n;
-    for (const byte of rBytes) r = (r << 8n) | BigInt(byte);
-    r = (r % (n - 2n)) + 2n; // 2 ≤ r < n
+    // ── 2. Cert efímero ────────────────────────────────────────────
+    const anonymousId = uuidv4();
+    
+    const ephCert = {
+      anonymousId:     anonymousId,
+      zone:            ZONE,
+      ephemeralPubKey: ephPubExported  // va dentro del hash; el servidor nunca la ve
+    };
+    const ephCertStr = JSON.stringify(ephCert);
 
-    // ── 5. Cegar: m' = m * pow(r, e, n) mod n ────────────────────
+    // ── 3. m = hash(ephCertStr) mod n_servidor ────────────────────
+    const hashHex = createHash('sha256').update(ephCertStr, 'utf8').digest('hex');
+    const m       = BigInt('0x' + hashHex) % n;
+    addLog(`m = hash(ephCert): ${m.toString().substring(0, 40)}...`);
+
+    // ── 4. Factor ciego r — uniforme en Z_n* ──────────────────────
+    // FIX: randomBytes(256) en lugar de encryptData
+    // encryptData añade padding OAEP → resultado sesgado, no válido como factor ciego
+    const r = BigInt('0x' + randomBytes(256).toString('hex')) % (n - 2n) + 2n;
+    addLog('Factor ciego r generado.');
+
+    // ── 5. Cegar con pubkey del SERVIDOR: m' = m * r^e mod n ──────
+    // El servidor recibe m' y no puede deducir m ni el cert
     const rE     = modPow(r, e, n);
     const mPrime = (m * rE) % n;
-    addLog(`🔏 Token cegado m' generado (primeros 40 chars): ${mPrime.toString().substring(0, 40)}...`);
+    addLog(`Token cegado m': ${mPrime.toString().substring(0, 40)}...`);
 
-    // ── 6. Enviar m' al auth-server para firma ciega ───────────────
-    // El auth-server requiere sesión activa; usamos la requestId guardada
-    // o indicamos al usuario que lo haga desde el panel del auth-server.
-    // Aquí llamamos directamente al endpoint JSON.
+    // ── 6. Enviar m' al servidor con JWT ──────────────────────────
     const blindResp = await fetch(`${AUTH_SERVER_URL}/authserver/blind-sign`, {
       method:  'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept':       'application/json',
-        // Pasamos el token Bearer para identificar el dispositivo
+        'Content-Type':  'application/json',
+        'Accept':        'application/json',
         'Authorization': `Bearer ${tokenData.access_token}`
       },
       body: JSON.stringify({
-        requestId:    DEVICE_ID + '-blind-demo',
+        requestId:    anonymousId,
         blindedToken: mPrime.toString()
       })
     });
 
     if (!blindResp.ok) {
-      const errData = await blindResp.json().catch(() => ({}));
-      // Si el servidor rechaza por sesión (requiere login de admin),
-      // mostramos instrucción al usuario
-      addLog(`⚠️  El auth-server requiere sesión de administrador activa para firmar a ciegas.`, 'warn');
-      addLog(`ℹ️  Ve a ${AUTH_SERVER_URL}/authserver/login, inicia sesión y vuelve a pulsar el botón.`, 'warn');
+      const err = await blindResp.json().catch(() => ({}));
+      addLog(`Error del servidor: ${err.message || blindResp.status}`, 'error');
       return res.redirect('/');
     }
 
-    const blindData = await blindResp.json();
-    const sPrime = BigInt(blindData.blindSignature);
-    addLog(`🔏 Firma ciega s' recibida (primeros 40 chars): ${sPrime.toString().substring(0, 40)}...`, 'success');
+    const { blindSignature: sPrimeStr } = await blindResp.json();
+    const sPrime = BigInt(sPrimeStr);
+    addLog(`Firma ciega s' recibida: ${sPrime.toString().substring(0, 40)}...`, 'success');
 
-    // ── 7. Descegar: s = s' * modInverse(r, n) mod n ─────────────
+    // ── 7. Descegar: s = s' * r⁻¹ mod n ──────────────────────────
     const rInv = modInverse(r, n);
     const s    = (sPrime * rInv) % n;
-    addLog(`🔏 Firma descegada s (primeros 40 chars): ${s.toString().substring(0, 40)}...`, 'success');
+    addLog(`Firma descegada s: ${s.toString().substring(0, 40)}...`, 'success');
 
-    // ── 8. Verificar: pow(s, e, n) == m ──────────────────────────
+    // ── 8. Verificar: s^e mod n == m ──────────────────────────────
+    // e y n son PÚBLICOS → el sensor puede verificar sin tocar la privada del servidor
     const recovered = modPow(s, e, n);
-    const valid     = recovered === m;
-
-    if (valid) {
-      addLog('✅ FIRMA CIEGA VERIFICADA: pow(s, e, n) == m ✅', 'success');
-      addLog('El servidor firmó el token SIN ver el mensaje original m.', 'success');
-    } else {
-      addLog('❌ Verificación fallida: pow(s, e, n) ≠ m', 'error');
+    if (recovered !== m) {
+      addLog('❌ Verificación fallida: s^e mod n ≠ m', 'error');
+      return res.redirect('/');
     }
+    addLog('✅ FIRMA CIEGA VERIFICADA: s^e mod n == m', 'success');
+    addLog('El servidor firmó ephPubKey+zone sin verlos nunca.', 'success');
+
+    // ── 9. Guardar ────────────────────────────────────────────────
+    writeJSON(EPHEMERAL_FILE, {
+      anonymousId: anonymousId,
+      ephemeralCert:      ephCert,
+      ephemeralCertStr:   ephCertStr,
+      ephemeralPrivKey:   ephPrivExported,
+      ephemeralSignature: s.toString(),
+      obtainedAt:         new Date().toISOString()
+    });
+
+    addLog('Cambiando a envío con firma ciega...', 'warn');
+    startMetricsBlind();
 
   } catch (err) {
     addLog(`Error en firma ciega: ${err.message}`, 'error');
@@ -456,7 +475,6 @@ app.post('/blind-sign-demo', async (req, res) => {
 
   res.redirect('/');
 });
-
 // ── Helpers BigInt para firma ciega ───────────────────────────────
 
 // Exponenciación modular: base^exp mod mod
@@ -493,6 +511,7 @@ app.get('/api/status', (req, res) => {
     isRegistered: existsSync(SENSOR_CERT_FILE),
     hasToken:     existsSync(TOKEN_FILE),
     isSending:    metricsInterval !== null,
+    isBlind: metricsBlindInterval !== null,
     keysReady:    DEVICE_PUBLIC_KEY_OBJ !== null,
     logs:         logs.slice(0, 15)
   });
@@ -557,7 +576,54 @@ function startMetrics() {
     }
   }, 10000);
 }
+function startMetricsBlind() {
+  if (metricsInterval) {
+    clearInterval(metricsInterval);
+    metricsInterval = null;
+    addLog('Envío normal detenido.', 'warn');
+  }
 
+  if (metricsBlindInterval) return;
+
+  metricsBlindInterval = setInterval(async () => {
+    const ephData = readJSON(EPHEMERAL_FILE);
+    if (!ephData) {
+      addLog('Datos efímeros no encontrados. Deteniendo envío ciego.', 'error');
+      clearInterval(metricsBlindInterval);
+      metricsBlindInterval = null;
+      return;
+    }
+    const energy = parseFloat((Math.random() * 90 + 10).toFixed(2));
+    try {
+      const resp = await fetch(`${AUTH_SERVER_URL}/resourceserver/metrics-blind`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          anonymousId:        ephData.ephemeralCert.anonymousId,
+          zone:               ZONE,
+          energyConsumption: energy,
+          timestamp:          new Date().toISOString(),
+          ephemeralPubKey:    ephData.ephemeralCert.ephemeralPubKey,
+          ephemeralSignature: ephData.ephemeralSignature
+        })
+      });
+
+      if (resp.ok) {
+        addLog(`📊 Métrica ciega enviada → anonymousId: ${ephData.ephemeralCert.anonymousId.substring(0, 8)}...`, 'success');
+      } else {
+        const err = await resp.json();
+        addLog(`Error enviando métrica ciega: ${err.message}`, 'error');
+        if (err.error === 'blind_signature_invalid') {
+          addLog('Firma ciega rechazada. Deteniendo envío.', 'warn');
+          clearInterval(metricsBlindInterval);
+          metricsBlindInterval = null;
+        }
+      }
+    } catch (err) {
+      addLog(`Error de red enviando métrica ciega: ${err.message}`, 'error');
+    }
+  }, 10000);
+}
 // ══════════════════════════════════════════════════════════════════
 // ARRANQUE — app.listen es el único punto de entrada
 // initKeys() DEBE ir antes que initManufacturerCertificate()
@@ -584,7 +650,7 @@ app.listen(PORT, async () => {
 // ══════════════════════════════════════════════════════════════════
 // Panel Bootstrap del sensor
 // ══════════════════════════════════════════════════════════════════
-function buildDashboard({ isReg, hasToken, isSending, token, sensorCert }) {
+function buildDashboard({ isReg, hasToken, isSending,isBlind, token, sensorCert }) {
 
   const statusBadge = !isReg
     ? `<span class="badge bg-danger fs-6 px-3 py-2">❌ No registrado</span>`
@@ -643,12 +709,12 @@ function buildDashboard({ isReg, hasToken, isSending, token, sensorCert }) {
     return `<div class="${c} small"><span class="text-secondary">[${l.ts.substring(11,19)}]</span> ${l.msg}</div>`;
   }).join('') || '<span class="text-secondary small">Sin logs aún...</span>';
 
-  const steps = [
-    { label: '1. Registro',    done: isReg || hasToken || isSending },
+   const steps = [
+    { label: '1. Registro',    done: isReg || hasToken || isSending || isBlind },
     { label: '2. Sensor Cert', done: isReg },
     { label: '3. JWT',         done: hasToken },
-    { label: '4. Métricas',    done: isSending },
-    { label: '5. Firma Ciega', done: isSending }
+    { label: '4. Métricas',    done: isSending || isBlind },  // ← verde si cualquiera de los dos corre
+    { label: '5. Firma Ciega', done: isBlind }                // ← solo verde cuando blind está activo
   ];
   const stepsHTML = steps.map(s =>
     `<div class="col text-center">
