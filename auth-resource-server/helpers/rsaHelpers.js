@@ -1,47 +1,6 @@
 /**
- * helpers/rsaHelpers.js
- * ─────────────────────────────────────────────────────────────────
- * Capa de uso sobre el paquete 'sciots-rsa'.
- *
- * REGLAS ESTRICTAS:
- *  - Todo lo RSA viene de:  import * as rsa from 'sciots-rsa'
- *  - crypto → SOLO para SHA-256 hash del mensaje antes de firmar/verificar
- *  - NUNCA: crypto.createSign, crypto.createVerify,
- *           crypto.generateKeyPair, crypto.publicEncrypt,
- *           crypto.privateDecrypt
- *
- * FUNCIONES EXPORTADAS:
- *  generateKeyPair(bits)                → { publicKey: RsaPublicKey, privateKey: RsaPrivateKey }
- *  signData(data, privateKey)           → string decimal (BigInt.toString)
- *  verifySignature(data, sig, pubKey)   → boolean
- *  encryptData(data, publicKey)         → string decimal
- *  decryptData(cipher, privateKey)      → string
- *  exportPublicKey(key)                 → { n: string, e: string }
- *  exportPrivateKey(key)                → { n: string, d: string }
- *  importPublicKey(obj)                 → RsaPublicKey
- *  importPrivateKey(obj)                → RsaPrivateKey
- *
- * FLUJO DE FIRMA:
- *  data → JSON.stringify → SHA-256 (crypto, solo hash) → BigInt hex
- *  s = privateKey.sign(hash)    ← RsaPrivateKey.sign() de sciots-rsa
- *  return s.toString()          ← string decimal serializable en JSON
- *
- * FLUJO DE VERIFICACIÓN:
- *  recovered = publicKey.verify(BigInt(sig))  ← RsaPublicKey.verify() de sciots-rsa
- *  expected  = SHA-256(data) → BigInt
- *  return recovered === expected
- *
- * FLUJO DE CIFRADO:
- *  m = string → Buffer → BigInt
- *  c = publicKey.encrypt(m)     ← RsaPublicKey.encrypt() de sciots-rsa
- *  return c.toString()
- *
- * FLUJO DE DESCIFRADO:
- *  m = privateKey.decrypt(BigInt(c))  ← RsaPrivateKey.decrypt() de sciots-rsa
- *  return BigInt → Buffer → string
  *
  * SERIALIZACIÓN DE CLAVES:
- *  Las claves contienen BigInt → no son JSON-serializables directamente.
  *  exportPublicKey  → { n: string, e: string }
  *  exportPrivateKey → { n: string, d: string }
  *  importPublicKey  → reconstruye RsaPublicKey   con new rsa.RsaPublicKey(BigInt, BigInt)
@@ -49,8 +8,8 @@
  * ─────────────────────────────────────────────────────────────────
  */
 
-import { createHash } from 'crypto';       // SOLO para SHA-256 hash
-import * as rsa from 'sciots-rsa';         // TODO lo RSA viene de aquí
+import { createHash } from 'crypto';       
+import * as rsa from 'sciots-rsa';      
 
 // ═════════════════════════════════════════════════════════════════
 // SECCIÓN 1 — SERIALIZACIÓN / DESERIALIZACIÓN DE CLAVES
@@ -146,8 +105,7 @@ function toPrivateKey(key) {
 
 // ═════════════════════════════════════════════════════════════════
 // SECCIÓN 3 — HELPER INTERNO: dato → SHA-256 → BigInt
-// crypto se usa EXCLUSIVAMENTE aquí, solo para calcular el hash.
-// La firma/verificación RSA la hacen los métodos de sciots-rsa.
+// crypto se usa aquí, solo para calcular el hash.
 // ═════════════════════════════════════════════════════════════════
 
 /**

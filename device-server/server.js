@@ -1,8 +1,6 @@
 /**
  * server.js — Device Server (simulador sensor IoT screenless)
  *
- * TODA la criptografía → helpers/rsaHelpers.js → sciots-rsa
- * NUNCA se llama a crypto directamente aquí.
  *
  * FLUJO COMPLETO:
  *  Arranque  → genera claves RSA del dispositivo (ASYNC, dentro de app.listen)

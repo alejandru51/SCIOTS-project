@@ -356,7 +356,7 @@ router.post('/token', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // POST /authserver/blind-sign
 //
-// Firma ciega RSA-Chaum (último paso del flujo de autorización).
+// Firma ciega RSA(último paso del flujo de autorización).
 //
 // El dispositivo envía un token cegado:
 //   m' = m · rᵉ mod n   (cegado con factor aleatorio r en el cliente)
@@ -450,15 +450,12 @@ router.post('/blind-sign', (req, res) => {
     .replace('{{BLIND_SIGNATURE}}',    blindSignature)
     .replace('{{RSA_N}}',              pubKeyRaw.n || '')
     .replace('{{RSA_E}}',              pubKeyRaw.e || '')
-    // FIX: d nunca sale del servidor
     .replace('{{RSA_D}}',              '[PROTEGIDO]')
     .replace('{{USER}}',               req.session.authenticatedUser || '');
   res.send(html);
 });
 
-// ── Helper interno: exponenciación modular con BigInt nativo ──────
-// Evita depender de librerías externas para esta operación simple.
-// base^exp mod mod  (todos BigInt)
+// ── exponenciación modular con BigInt nativo
 function modPow(base, exp, mod) {
   let result = 1n;
   base = base % mod;

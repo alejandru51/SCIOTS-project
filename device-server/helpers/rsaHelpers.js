@@ -1,5 +1,4 @@
-// Exactamente igual al del auth-resource-server.
-// Copia completa para que device-server sea completamente independiente.
+
 
 import { createHash } from 'crypto';
 import * as rsa from 'sciots-rsa'; 
