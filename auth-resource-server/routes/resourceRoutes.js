@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { verifyToken } from '../middleware/verifyToken.js';
-import { decryptData } from '../helpers/rsaHelpers.js';
+import { decryptData, importPublicKey,verifySignature } from '../helpers/rsaHelpers.js';
 import { createHash ,randomBytes } from 'crypto';
 
 const __dirname    = dirname(fileURLToPath(import.meta.url));
@@ -73,20 +73,37 @@ router.post('/metrics', verifyToken, (req, res) => {
   console.log(`[ResourceServer] Métrica descifrada de ${deviceId}: ${energyConsumption} kWh`);
   res.json({ status: 'ok', message: 'Métrica registrada', receivedAt: record.receivedAt });
 });
+
+
+
+
 router.post('/metrics-blind', (req, res) => {
-  const { energyConsumption,anonymousId, zone, timestamp, ephemeralPubKey, ephemeralSignature } = req.body;
+  const { encryptedData, ephemeralPubKey, ephemeralSignature, metricSignature } = req.body;
 
   // ── 1. Validar campos ──────────────────────────────────────────
-  if (!energyConsumption||!anonymousId || !zone || !timestamp || !ephemeralPubKey || !ephemeralSignature) {
+  if (!encryptedData || !ephemeralPubKey || !ephemeralSignature || !metricSignature) {
     return res.status(400).json({
       error:   'missing_fields',
-      message: 'Se requieren anonymousId, energyConsumption, zone, timestamp, ephemeralPubKey y ephemeralSignature'
+      message: 'Se requieren encryptedData, ephemeralPubKey, ephemeralSignature y metricSignature'
     });
   }
 
-  // ── 2. Reconstruir ephCert y hacer hash ────────────────────────
-  // El sensor construyó el cert con exactamente estos campos en este orden.
-  // Reconstruimos el mismo JSON y hacemos el mismo hash para verificar.
+  // ── 2. Descifrar datos sensibles ───────────────────────────────
+  let anonymousId, zone, timestamp, energyConsumption;
+  try {
+    const privKeyRaw = readJSON(PRIV_KEY_FILE);
+    if (!privKeyRaw) throw new Error('Clave privada no encontrada');
+    const decrypted = decryptData(encryptedData, privKeyRaw);
+    ({ anonymousId, zone, timestamp, energyConsumption } = JSON.parse(decrypted));
+  } catch (err) {
+    return res.status(400).json({ error: 'decrypt_error', message: 'Error descifrando payload' });
+  }
+
+  if (!anonymousId || !zone || !timestamp || !energyConsumption) {
+    return res.status(400).json({ error: 'missing_fields', message: 'Faltan campos en el payload descifrado' });
+  }
+
+  // ── 3. Reconstruir ephCert y hacer hash ────────────────────────
   let m, s, n, e;
   try {
     const authPubKeyRaw = readJSON(PUB_KEY_FILE);
@@ -95,15 +112,9 @@ router.post('/metrics-blind', (req, res) => {
     n = BigInt(authPubKeyRaw.n);
     e = BigInt(authPubKeyRaw.e);
 
-    // Reconstruir ephCert exactamente igual que en el sensor
-    const ephCert = {
-      anonymousId,
-      zone,
-      ephemeralPubKey
-    };
+    const ephCert    = { anonymousId, zone, ephemeralPubKey };
     const ephCertStr = JSON.stringify(ephCert);
 
-    // hash(ephCertStr) mod n — mismo cálculo que hizo el sensor
     const hashHex = createHash('sha256').update(ephCertStr, 'utf8').digest('hex');
     m = BigInt('0x' + hashHex) % n;
     s = BigInt(ephemeralSignature);
@@ -113,8 +124,7 @@ router.post('/metrics-blind', (req, res) => {
     return res.status(500).json({ error: 'server_error', message: err.message });
   }
 
-  // ── 3. Verificar firma ciega: s^e mod n == m ───────────────────
-  // Comprueba que el auth-server firmó este cert durante el blind-sign
+  // ── 4. Verificar firma ciega: s^e mod n == m ───────────────────
   try {
     const recovered = modPow(s, e, n);
     if (recovered !== m) {
@@ -127,7 +137,29 @@ router.post('/metrics-blind', (req, res) => {
     return res.status(400).json({ error: 'verify_error', message: 'Error verificando firma ciega' });
   }
 
-  // ── 4. Guardar cert verificado ─────────────────────────────────
+  // ── 5. Verificar posesión de la clave efímera privada ──────────
+  try {
+    const ephPubKey     = importPublicKey(ephemeralPubKey);
+    const metricPayload = {
+      anonymousId,
+      zone,
+      energyConsumption,
+      timestamp,
+      ephemeralPubKey,
+      ephemeralSignature
+    };
+    const isMetricValid = verifySignature(metricPayload, metricSignature, ephPubKey);
+    if (!isMetricValid) {
+      return res.status(401).json({
+        error:   'invalid_metric_signature',
+        message: 'El emisor no puede probar posesión de la clave efímera privada'
+      });
+    }
+  } catch (err) {
+    return res.status(400).json({ error: 'verify_error', message: 'Error verificando firma de métrica' });
+  }
+
+  // ── 6. Guardar ─────────────────────────────────────────────────
   const certRecord = {
     anonymousId,
     zone,
@@ -137,7 +169,6 @@ router.post('/metrics-blind', (req, res) => {
   };
 
   try {
-    // Leer registros existentes y añadir el nuevo
     const existing = readJSON(BLIND_METRICS_FILE) || [];
     existing.push(certRecord);
     writeJSON(BLIND_METRICS_FILE, existing);
@@ -154,7 +185,6 @@ router.post('/metrics-blind', (req, res) => {
     message:     'Cert efímero verificado y registrado correctamente'
   });
 });
-
 // ══════════════════════════════════════════════════════════════════
 // GET /resourceserver/metrics
 // ══════════════════════════════════════════════════════════════════

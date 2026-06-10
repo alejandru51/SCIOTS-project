@@ -66,7 +66,7 @@ router.get('/public-key', (req, res) => {
   if (!pubKey) return res.status(500).json({ error: 'Clave pública no disponible aún' });
   res.json({ publicKey: pubKey });
 });
-
+//AUTH SERVER
 // ══════════════════════════════════════════════════════════════════
 // POST /authserver/bootstrap-manufacturer-cert
 // ══════════════════════════════════════════════════════════════════
@@ -94,16 +94,13 @@ router.post('/bootstrap-manufacturer-cert', (req, res) => {
   res.json({ manufacturerCertificate: { payload, signature } });
 });
 
-// ══════════════════════════════════════════════════════════════════
-// POST /authserver/register-device
-// ══════════════════════════════════════════════════════════════════
 router.post('/register-device', (req, res) => {
-  const { manufacturerCertificate, deviceId, publicKey, redirect_uri } = req.body;
+  const { manufacturerCertificate, certSignature, deviceId, publicKey, redirect_uri } = req.body;
 
-  if (!manufacturerCertificate || !deviceId || !publicKey || !redirect_uri) {
+  if (!manufacturerCertificate || !certSignature || !deviceId || !publicKey || !redirect_uri) {
     return res.status(400).json({
       error: 'invalid_request',
-      message: 'Campos requeridos: manufacturerCertificate, deviceId, publicKey, redirect_uri'
+      message: 'Campos requeridos: manufacturerCertificate, certSignature, deviceId, publicKey, redirect_uri'
     });
   }
 
@@ -123,11 +120,17 @@ router.post('/register-device', (req, res) => {
     });
   }
 
+  // 1. Verifica que el cert fue emitido por el Auth Server
   const authPublicKey = getAuthPublicKey();
-  const isValid = verifySignature(payload, signature, authPublicKey);
-
-  if (!isValid) {
+  const isCertValid = verifySignature(payload, signature, authPublicKey);
+  if (!isCertValid) {
     return res.status(401).json({ error: 'invalid_signature', message: 'Firma del manufacturer cert inválida' });
+  }
+
+  // 2. Verifica que el que envia tiene la clave privada del certificado
+  const isSenderValid = verifySignature(manufacturerCertificate, certSignature, publicKey);
+  if (!isSenderValid) {
+    return res.status(401).json({ error: 'invalid_device_signature', message: 'El dispositivo no puede probar posesión de la clave privada' });
   }
 
   const requestId = uuidv4();
@@ -145,7 +148,6 @@ router.post('/register-device', (req, res) => {
   req.session.pendingRequestId = requestId;
   res.redirect(`${AUTH_SERVER_URL}/authserver/login?requestId=${requestId}`);
 });
-
 // ══════════════════════════════════════════════════════════════════
 // GET /authserver/login
 // ══════════════════════════════════════════════════════════════════
@@ -182,7 +184,7 @@ router.post('/login', (req, res) => {
 
   req.session.authenticatedUser = username;
   req.session.pendingRequestId  = requestId;
-  res.redirect(`${AUTH_SERVER_URL}/authserver/consent?requestId=${requestId}`); // ← CORREGIDO
+  res.redirect(`${AUTH_SERVER_URL}/authserver/consent?requestId=${requestId}`); 
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -192,7 +194,7 @@ router.get('/consent', (req, res) => {
   const { requestId } = req.query;
 
   if (!req.session.authenticatedUser) {
-    return res.redirect(`${AUTH_SERVER_URL}/authserver/login?requestId=${requestId}`); // ← CORREGIDO
+    return res.redirect(`${AUTH_SERVER_URL}/authserver/login?requestId=${requestId}`);
   }
   if (!requestId || !pendingRequests[requestId]) {
     return res.status(400).sendFile(join(VIEWS_DIR, 'error.html'));
@@ -288,12 +290,12 @@ router.post('/reject', (req, res) => {
 // POST /authserver/token
 // ══════════════════════════════════════════════════════════════════
 router.post('/token', (req, res) => {
-  const { authorizationCode, sensorCertificate } = req.body;
+  const { authorizationCode, sensorCertificate, certSignature } = req.body;
 
-  if (!authorizationCode || !sensorCertificate) {
+  if (!authorizationCode || !sensorCertificate || !certSignature) {
     return res.status(400).json({
       error: 'invalid_request',
-      message: 'Se requieren authorizationCode y sensorCertificate'
+      message: 'Se requieren authorizationCode, sensorCertificate y certSignature'
     });
   }
 
@@ -303,6 +305,7 @@ router.post('/token', (req, res) => {
 
   const { payload, signature } = sensorCertificate;
 
+  // 1. Verifica que el cert fue emitido por el Auth Server
   const authPublicKey = getAuthPublicKey();
   const isValidSig    = verifySignature(payload, signature, authPublicKey);
 
@@ -312,6 +315,12 @@ router.post('/token', (req, res) => {
 
   if (payload.signedBy !== 'AuthServer') {
     return res.status(401).json({ error: 'invalid_certificate', message: 'El cert no fue firmado por AuthServer' });
+  }
+
+  // 2. Verifica que quien envía el cert posee la clave privada correspondiente
+  const isSenderValid = verifySignature(sensorCertificate, certSignature, payload.publicKey);
+  if (!isSenderValid) {
+    return res.status(401).json({ error: 'invalid_device_signature', message: 'El dispositivo no puede probar posesión de la clave privada' });
   }
 
   const authCodes  = readJSON(AUTH_CODES_FILE, []);

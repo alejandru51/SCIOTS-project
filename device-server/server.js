@@ -31,7 +31,8 @@ import {
   importPublicKey,
   importPrivateKey,
   verifySignature,
-  encryptData 
+  encryptData,
+  signData
 } from './helpers/rsaHelpers.js';
 
 // ── Captura errores no controlados para evitar silent exits ────────
@@ -137,7 +138,7 @@ async function initKeys() {
   }
 }
 
-
+//SERVIDOR
 // ══════════════════════════════════════════════════════════════════
 // BOOTSTRAP: obtener manufacturer certificate del auth server
 // ══════════════════════════════════════════════════════════════════
@@ -191,7 +192,6 @@ async function initManufacturerCertificate() {
 app.post('/register', async (req, res) => {
   addLog('Iniciando registro del dispositivo...');
 
-  // Guard: claves aún no listas (arranque muy rápido)
   if (!DEVICE_PUBLIC_KEY_OBJ) {
     addLog('Las claves RSA todavía no están listas. Espera unos segundos y vuelve a intentarlo.', 'warn');
     return res.redirect('/');
@@ -204,13 +204,18 @@ app.post('/register', async (req, res) => {
   }
 
   try {
+    // Firma el manufacturerCertificate con la clave privada del sensor
+    const devicePrivateKey = readJSON(DEV_PRIV_FILE);
+    const certSignature = signData(mfrCert, devicePrivateKey);
+
     const resp = await fetch(`${AUTH_SERVER_URL}/authserver/register-device`, {
-      method:   'POST',
-      headers:  { 'Content-Type': 'application/json' },
-      body:     JSON.stringify({
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         manufacturerCertificate: mfrCert,
-        deviceId:    DEVICE_ID,
-        publicKey:   DEVICE_PUBLIC_KEY_OBJ,
+        certSignature,
+        deviceId:     DEVICE_ID,
+        publicKey:    DEVICE_PUBLIC_KEY_OBJ,
         redirect_uri: `${DEVICE_SERVER_URL}/callback`
       }),
       redirect: 'manual'
@@ -230,19 +235,18 @@ app.post('/register', async (req, res) => {
     res.redirect('/');
   }
 });
-
 // ══════════════════════════════════════════════════════════════════
 // GET /callback — Auth server redirige aquí tras aprobar/rechazar
 // ══════════════════════════════════════════════════════════════════
 app.get('/callback', (req, res) => {
-  const { code, signature, issuedAt, error } = req.query;  // ← añadido issuedAt
+  const { code, signature, issuedAt, error } = req.query;
 
   if (error) {
     addLog(`Registro rechazado: ${error}`, 'warn');
     return res.redirect('/');
   }
 
-  if (!code || !signature || !issuedAt) {  // ← añadido issuedAt al check
+  if (!code || !signature || !issuedAt) { 
     addLog('Callback inválido: faltan code, signature o issuedAt', 'error');
     return res.redirect('/');
   }
@@ -288,12 +292,17 @@ app.post('/get-token', async (req, res) => {
   }
 
   try {
+    // Firma el sensorCertificate con la clave privada del sensor
+    const devicePrivateKey = readJSON(DEV_PRIV_FILE);
+    const certSignature = signData(sensorCert, devicePrivateKey);
+
     const resp = await fetch(`${AUTH_SERVER_URL}/authserver/token`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
         authorizationCode: authCodeData.code,
-        sensorCertificate: sensorCert
+        sensorCertificate: sensorCert,
+        certSignature
       })
     });
 
@@ -338,7 +347,8 @@ app.post('/stop-metrics', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 app.post('/reset', (req, res) => {
   if (metricsInterval) { clearInterval(metricsInterval); metricsInterval = null; }
-  [TOKEN_FILE, AUTH_CODE_FILE, SENSOR_CERT_FILE].forEach(f => {
+  if (metricsBlindInterval) { clearInterval(metricsBlindInterval); metricsBlindInterval = null; }
+  [TOKEN_FILE, AUTH_CODE_FILE, SENSOR_CERT_FILE, EPHEMERAL_FILE].forEach(f => {
     if (existsSync(f)) unlinkSync(f);
   });
   logs.length = 0;
@@ -347,7 +357,7 @@ app.post('/reset', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
-// POST /blind-sign-demo — Demostración de firma ciega RSA-Chaum
+// POST /blind-sign-demo — Demostración de firma ciega RSA
 //
 // El dispositivo actúa como cliente del esquema:
 //  1. Genera mensaje m = hash del deviceId + timestamp
@@ -378,8 +388,8 @@ app.post('/blind-sign-demo', async (req, res) => {
     const n = serverPubKey.n;
     const e = serverPubKey.e;
 
-    // ── 1. Claves efímeras ─────────────────────────────────────────
-    addLog('Generando claves RSA efímeras (2048 bits)...');
+    // ── 1. Claves NUEVAS ─────────────────────────────────────────
+    addLog('Generando claves RSA NUEVAS (2048 bits)...');
     const { publicKey: ephPub, privateKey: ephPriv } = await new Promise((resolve, reject) => {
       try { resolve(generateKeyPair(2048)); } catch (err) { reject(err); }
     });
@@ -387,7 +397,7 @@ app.post('/blind-sign-demo', async (req, res) => {
     const ephPrivExported = exportPrivateKey(ephPriv);
     addLog('Claves efímeras generadas.', 'success');
 
-    // ── 2. Cert efímero ────────────────────────────────────────────
+    // ── 2. Cert NUEVAS ────────────────────────────────────────────
     const anonymousId = uuidv4();
     
     const ephCert = {
@@ -403,7 +413,7 @@ app.post('/blind-sign-demo', async (req, res) => {
     addLog(`m = hash(ephCert): ${m.toString().substring(0, 40)}...`);
 
     // ── 4. Factor ciego r — uniforme en Z_n* ──────────────────────
-    // FIX: randomBytes(256) en lugar de encryptData
+    // FIX: randomBytes(256)
     // encryptData añade padding OAEP → resultado sesgado, no válido como factor ciego
     const r = BigInt('0x' + randomBytes(256).toString('hex')) % (n - 2n) + 2n;
     addLog('Factor ciego r generado.');
@@ -546,7 +556,7 @@ function startMetrics() {
       energyConsumption: energy
     });
 
-    const encryptedData = encryptData(plainPayload, authPubKey);  // ← NUEVO
+    const encryptedData = encryptData(plainPayload, authPubKey);
 
     try {
       const resp = await fetch(`${AUTH_SERVER_URL}/resourceserver/metrics`, {
@@ -591,23 +601,49 @@ function startMetricsBlind() {
       metricsBlindInterval = null;
       return;
     }
-    const energy = parseFloat((Math.random() * 90 + 10).toFixed(2));
+
+    const authPubKey = readJSON(AUTH_PUB_KEY_FILE);
+    if (!authPubKey) {
+      addLog('Clave pública del servidor no encontrada.', 'error');
+      return;
+    }
+
+    const energy    = parseFloat((Math.random() * 90 + 10).toFixed(2));
+    const timestamp = new Date().toISOString();
+
+    const metricPayload = {
+      anonymousId:        ephData.ephemeralCert.anonymousId,
+      zone:               ZONE,
+      energyConsumption:  energy,
+      timestamp,
+      ephemeralPubKey:    ephData.ephemeralCert.ephemeralPubKey,
+      ephemeralSignature: ephData.ephemeralSignature
+    };
+
+    const ephPrivKey      = importPrivateKey(ephData.ephemeralPrivKey);
+    const metricSignature = signData(metricPayload, ephPrivKey);
+
+    const encryptedData = encryptData(JSON.stringify({
+      anonymousId:       ephData.ephemeralCert.anonymousId,
+      zone:              ZONE,
+      energyConsumption: energy,
+      timestamp
+    }), authPubKey);
+
     try {
       const resp = await fetch(`${AUTH_SERVER_URL}/resourceserver/metrics-blind`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          anonymousId:        ephData.ephemeralCert.anonymousId,
-          zone:               ZONE,
-          energyConsumption: energy,
-          timestamp:          new Date().toISOString(),
+          encryptedData,
           ephemeralPubKey:    ephData.ephemeralCert.ephemeralPubKey,
-          ephemeralSignature: ephData.ephemeralSignature
+          ephemeralSignature: ephData.ephemeralSignature,
+          metricSignature
         })
       });
 
       if (resp.ok) {
-        addLog(`📊 Métrica ciega enviada → anonymousId: ${ephData.ephemeralCert.anonymousId.substring(0, 8)}...`, 'success');
+        addLog(`📊 Métrica ciega cifrada enviada → anonymousId: ${ephData.ephemeralCert.anonymousId.substring(0, 8)}...`, 'success');
       } else {
         const err = await resp.json();
         addLog(`Error enviando métrica ciega: ${err.message}`, 'error');

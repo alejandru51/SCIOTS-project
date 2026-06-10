@@ -22,6 +22,208 @@
           "count": 100,
           "sentAt": "2026-05-24T06:47:00.361Z"
         }
+      ],
+      "2026-05-26T16:00:00.000Z": [
+        {
+          "consumption": 147131,
+          "count": 100,
+          "sentAt": "2026-05-26T16:11:37.626Z"
+        },
+        {
+          "consumption": 35694,
+          "count": 100,
+          "sentAt": "2026-05-26T16:11:42.374Z"
+        },
+        {
+          "consumption": 117133,
+          "count": 100,
+          "sentAt": "2026-05-26T16:11:59.285Z"
+        },
+        {
+          "consumption": 83137,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:12.373Z"
+        },
+        {
+          "consumption": 113051,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:30.101Z"
+        },
+        {
+          "consumption": 104956,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:42.372Z"
+        },
+        {
+          "consumption": 135837,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:57.299Z"
+        },
+        {
+          "consumption": 148696,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:11.992Z"
+        },
+        {
+          "consumption": 7874,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:12.372Z"
+        },
+        {
+          "consumption": 147298,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:30.108Z"
+        },
+        {
+          "consumption": 95077,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:42.373Z"
+        },
+        {
+          "consumption": 153009,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:00.192Z"
+        },
+        {
+          "consumption": 147824,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:12.374Z"
+        },
+        {
+          "consumption": 150772,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:28.319Z"
+        },
+        {
+          "consumption": 101414,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:42.374Z"
+        },
+        {
+          "consumption": 166206,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:54.179Z"
+        },
+        {
+          "consumption": 102020,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:12.375Z"
+        },
+        {
+          "consumption": 166726,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:28.504Z"
+        },
+        {
+          "consumption": 95730,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:42.376Z"
+        },
+        {
+          "consumption": 178117,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:57.837Z"
+        },
+        {
+          "consumption": 124759,
+          "count": 100,
+          "sentAt": "2026-05-26T16:16:12.376Z"
+        },
+        {
+          "consumption": 173396,
+          "count": 100,
+          "sentAt": "2026-05-26T16:16:28.381Z"
+        },
+        {
+          "consumption": 117261,
+          "count": 100,
+          "sentAt": "2026-05-26T16:16:42.377Z"
+        },
+        {
+          "consumption": 139226,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:01.265Z"
+        },
+        {
+          "consumption": 89687,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:12.378Z"
+        },
+        {
+          "consumption": 124808,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:31.771Z"
+        },
+        {
+          "consumption": 68688,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:42.380Z"
+        },
+        {
+          "consumption": 129162,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:00.278Z"
+        },
+        {
+          "consumption": 96544,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:12.379Z"
+        },
+        {
+          "consumption": 154687,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:29.611Z"
+        },
+        {
+          "consumption": 89390,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:42.380Z"
+        },
+        {
+          "consumption": 152169,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:56.168Z"
+        },
+        {
+          "consumption": 124321,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:12.381Z"
+        },
+        {
+          "consumption": 131052,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:29.642Z"
+        },
+        {
+          "consumption": 111277,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:42.381Z"
+        },
+        {
+          "consumption": 124491,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:57.761Z"
+        },
+        {
+          "consumption": 151998,
+          "count": 100,
+          "sentAt": "2026-05-26T16:20:12.382Z"
+        },
+        {
+          "consumption": 144914,
+          "count": 100,
+          "sentAt": "2026-05-26T16:20:26.318Z"
+        },
+        {
+          "consumption": 137951,
+          "count": 100,
+          "sentAt": "2026-05-26T16:20:42.325Z"
+        },
+        {
+          "consumption": 147968,
+          "count": 100,
+          "sentAt": "2026-05-26T16:21:01.739Z"
+        }
       ]
     },
     "El barrio": {
@@ -45,6 +247,613 @@
           "consumption": 242187137834,
           "count": 100,
           "sentAt": "2026-05-24T06:47:00.376Z"
+        }
+      ],
+      "2026-05-26T16:00:00.000Z": [
+        {
+          "consumption": 84068,
+          "count": 100,
+          "sentAt": "2026-05-26T16:11:42.388Z"
+        },
+        {
+          "consumption": 62668,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:08.976Z"
+        },
+        {
+          "consumption": 11160,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:12.385Z"
+        },
+        {
+          "consumption": 82548,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:37.437Z"
+        },
+        {
+          "consumption": 14547,
+          "count": 100,
+          "sentAt": "2026-05-26T16:12:42.383Z"
+        },
+        {
+          "consumption": 82319,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:07.810Z"
+        },
+        {
+          "consumption": 12043,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:12.382Z"
+        },
+        {
+          "consumption": 93386,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:39.926Z"
+        },
+        {
+          "consumption": 10869,
+          "count": 100,
+          "sentAt": "2026-05-26T16:13:42.385Z"
+        },
+        {
+          "consumption": 87753,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:06.415Z"
+        },
+        {
+          "consumption": 17105,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:12.385Z"
+        },
+        {
+          "consumption": 78191,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:38.856Z"
+        },
+        {
+          "consumption": 10188,
+          "count": 100,
+          "sentAt": "2026-05-26T16:14:42.387Z"
+        },
+        {
+          "consumption": 83847,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:07.441Z"
+        },
+        {
+          "consumption": 21505,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:12.386Z"
+        },
+        {
+          "consumption": 107441,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:36.930Z"
+        },
+        {
+          "consumption": 13217,
+          "count": 100,
+          "sentAt": "2026-05-26T16:15:42.386Z"
+        },
+        {
+          "consumption": 91740,
+          "count": 100,
+          "sentAt": "2026-05-26T16:16:07.205Z"
+        },
+        {
+          "consumption": 15135,
+          "count": 100,
+          "sentAt": "2026-05-26T16:16:12.387Z"
+        },
+        {
+          "consumption": 96941,
+          "count": 100,
+          "sentAt": "2026-05-26T16:16:35.715Z"
+        },
+        {
+          "consumption": 17852,
+          "count": 100,
+          "sentAt": "2026-05-26T16:16:42.390Z"
+        },
+        {
+          "consumption": 82619,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:06.608Z"
+        },
+        {
+          "consumption": 18592,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:12.387Z"
+        },
+        {
+          "consumption": 85982,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:37.696Z"
+        },
+        {
+          "consumption": 19971,
+          "count": 100,
+          "sentAt": "2026-05-26T16:17:42.394Z"
+        },
+        {
+          "consumption": 95446,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:12.175Z"
+        },
+        {
+          "consumption": 192,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:12.392Z"
+        },
+        {
+          "consumption": 68837,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:39.267Z"
+        },
+        {
+          "consumption": 21246,
+          "count": 100,
+          "sentAt": "2026-05-26T16:18:42.390Z"
+        },
+        {
+          "consumption": 90145,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:05.466Z"
+        },
+        {
+          "consumption": 19958,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:12.394Z"
+        },
+        {
+          "consumption": 76236,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:41.166Z"
+        },
+        {
+          "consumption": 6533,
+          "count": 100,
+          "sentAt": "2026-05-26T16:19:42.390Z"
+        },
+        {
+          "consumption": 102985,
+          "count": 100,
+          "sentAt": "2026-05-26T16:20:10.521Z"
+        },
+        {
+          "consumption": 4470,
+          "count": 100,
+          "sentAt": "2026-05-26T16:20:12.391Z"
+        },
+        {
+          "consumption": 91695,
+          "count": 100,
+          "sentAt": "2026-05-26T16:20:37.158Z"
+        },
+        {
+          "consumption": 25924,
+          "count": 100,
+          "sentAt": "2026-05-26T16:20:42.381Z"
+        }
+      ]
+    },
+    "zona-a": {
+      "1991-07-23T20:00:00.000Z": [
+        {
+          "consumption": 54,
+          "receivedAt": "2026-05-26T16:21:37.406Z"
+        },
+        {
+          "consumption": 98,
+          "receivedAt": "2026-05-26T16:21:42.425Z"
+        },
+        {
+          "consumption": 46,
+          "receivedAt": "2026-05-26T16:21:47.440Z"
+        },
+        {
+          "consumption": 71,
+          "receivedAt": "2026-05-26T16:21:52.458Z"
+        },
+        {
+          "consumption": 99,
+          "receivedAt": "2026-05-26T16:21:57.480Z"
+        },
+        {
+          "consumption": 78,
+          "receivedAt": "2026-05-26T16:22:02.500Z"
+        },
+        {
+          "consumption": 74,
+          "receivedAt": "2026-05-26T16:22:07.516Z"
+        },
+        {
+          "consumption": 70,
+          "receivedAt": "2026-05-26T16:22:12.531Z"
+        },
+        {
+          "consumption": 12,
+          "receivedAt": "2026-05-26T16:22:17.544Z"
+        },
+        {
+          "consumption": 42,
+          "receivedAt": "2026-05-26T16:22:22.562Z"
+        },
+        {
+          "consumption": 33,
+          "receivedAt": "2026-05-26T16:22:27.581Z"
+        },
+        {
+          "consumption": 36,
+          "receivedAt": "2026-05-26T16:22:32.600Z"
+        },
+        {
+          "consumption": 84,
+          "receivedAt": "2026-05-26T16:22:37.620Z"
+        },
+        {
+          "consumption": 37,
+          "receivedAt": "2026-05-26T16:22:42.640Z"
+        },
+        {
+          "consumption": 15,
+          "receivedAt": "2026-05-26T16:22:47.655Z"
+        },
+        {
+          "consumption": 25,
+          "receivedAt": "2026-05-26T16:22:52.671Z"
+        },
+        {
+          "consumption": 20,
+          "receivedAt": "2026-05-26T16:22:57.685Z"
+        },
+        {
+          "consumption": 20,
+          "receivedAt": "2026-05-26T16:23:02.698Z"
+        },
+        {
+          "consumption": 83,
+          "receivedAt": "2026-05-26T16:23:07.714Z"
+        },
+        {
+          "consumption": 51,
+          "receivedAt": "2026-05-26T16:23:12.732Z"
+        },
+        {
+          "consumption": 39,
+          "receivedAt": "2026-05-26T16:23:17.750Z"
+        },
+        {
+          "consumption": 62,
+          "receivedAt": "2026-05-26T16:23:22.763Z"
+        },
+        {
+          "consumption": 95,
+          "receivedAt": "2026-05-26T16:23:27.780Z"
+        },
+        {
+          "consumption": 53,
+          "receivedAt": "2026-05-26T16:23:32.802Z"
+        },
+        {
+          "consumption": 33,
+          "receivedAt": "2026-05-26T16:23:37.820Z"
+        },
+        {
+          "consumption": 78,
+          "receivedAt": "2026-05-26T16:23:42.841Z"
+        },
+        {
+          "consumption": 52,
+          "receivedAt": "2026-05-26T16:23:47.860Z"
+        },
+        {
+          "consumption": 46,
+          "receivedAt": "2026-05-26T16:23:52.877Z"
+        },
+        {
+          "consumption": 64,
+          "receivedAt": "2026-05-26T16:23:57.895Z"
+        },
+        {
+          "consumption": 39,
+          "receivedAt": "2026-05-26T16:24:02.914Z"
+        },
+        {
+          "consumption": 100,
+          "receivedAt": "2026-05-26T16:24:07.938Z"
+        },
+        {
+          "consumption": 74,
+          "receivedAt": "2026-05-26T16:24:12.959Z"
+        },
+        {
+          "consumption": 24,
+          "receivedAt": "2026-05-26T16:24:17.983Z"
+        },
+        {
+          "consumption": 32,
+          "receivedAt": "2026-05-26T16:24:23.000Z"
+        },
+        {
+          "consumption": 72,
+          "receivedAt": "2026-05-26T16:24:28.019Z"
+        },
+        {
+          "consumption": 28,
+          "receivedAt": "2026-05-26T16:24:33.038Z"
+        },
+        {
+          "consumption": 64,
+          "receivedAt": "2026-05-26T16:24:38.055Z"
+        },
+        {
+          "consumption": 70,
+          "receivedAt": "2026-05-26T16:24:43.078Z"
+        },
+        {
+          "consumption": 24,
+          "receivedAt": "2026-05-26T16:24:48.103Z"
+        },
+        {
+          "consumption": 27,
+          "receivedAt": "2026-05-26T16:24:53.120Z"
+        },
+        {
+          "consumption": 34,
+          "receivedAt": "2026-05-26T16:24:58.137Z"
+        },
+        {
+          "consumption": 25,
+          "receivedAt": "2026-05-26T16:25:03.158Z"
+        },
+        {
+          "consumption": 84,
+          "receivedAt": "2026-05-26T16:25:08.175Z"
+        },
+        {
+          "consumption": 49,
+          "receivedAt": "2026-05-26T16:25:13.196Z"
+        },
+        {
+          "consumption": 27,
+          "receivedAt": "2026-05-26T16:25:18.216Z"
+        },
+        {
+          "consumption": 98,
+          "receivedAt": "2026-05-26T16:25:23.240Z"
+        },
+        {
+          "consumption": 34,
+          "receivedAt": "2026-05-26T16:25:28.260Z"
+        },
+        {
+          "consumption": 26,
+          "receivedAt": "2026-05-26T16:25:33.281Z"
+        },
+        {
+          "consumption": 29,
+          "receivedAt": "2026-05-26T16:25:38.301Z"
+        },
+        {
+          "consumption": 34,
+          "receivedAt": "2026-05-26T16:25:43.323Z"
+        },
+        {
+          "consumption": 64,
+          "receivedAt": "2026-05-26T16:25:48.338Z"
+        },
+        {
+          "consumption": 87,
+          "receivedAt": "2026-05-26T16:25:53.356Z"
+        },
+        {
+          "consumption": 22,
+          "receivedAt": "2026-05-26T16:25:58.371Z"
+        },
+        {
+          "consumption": 34,
+          "receivedAt": "2026-05-26T16:26:03.388Z"
+        },
+        {
+          "consumption": 69,
+          "receivedAt": "2026-05-26T16:26:08.399Z"
+        },
+        {
+          "consumption": 63,
+          "receivedAt": "2026-05-26T16:26:13.414Z"
+        },
+        {
+          "consumption": 44,
+          "receivedAt": "2026-05-26T16:26:18.433Z"
+        },
+        {
+          "consumption": 91,
+          "receivedAt": "2026-05-26T16:26:23.447Z"
+        },
+        {
+          "consumption": 53,
+          "receivedAt": "2026-05-26T16:26:28.461Z"
+        },
+        {
+          "consumption": 72,
+          "receivedAt": "2026-05-26T16:26:33.479Z"
+        },
+        {
+          "consumption": 46,
+          "receivedAt": "2026-05-26T16:26:38.493Z"
+        },
+        {
+          "consumption": 19,
+          "receivedAt": "2026-05-26T16:26:43.509Z"
+        },
+        {
+          "consumption": 45,
+          "receivedAt": "2026-05-26T16:26:48.526Z"
+        },
+        {
+          "consumption": 16,
+          "receivedAt": "2026-05-26T16:26:53.541Z"
+        },
+        {
+          "consumption": 61,
+          "receivedAt": "2026-05-26T16:26:58.559Z"
+        },
+        {
+          "consumption": 19,
+          "receivedAt": "2026-05-26T16:27:03.577Z"
+        },
+        {
+          "consumption": 68,
+          "receivedAt": "2026-05-26T16:27:08.594Z"
+        },
+        {
+          "consumption": 33,
+          "receivedAt": "2026-05-26T16:27:13.610Z"
+        },
+        {
+          "consumption": 32,
+          "receivedAt": "2026-05-26T16:27:18.626Z"
+        },
+        {
+          "consumption": 57,
+          "receivedAt": "2026-05-26T16:27:23.641Z"
+        },
+        {
+          "consumption": 47,
+          "receivedAt": "2026-05-26T16:27:28.659Z"
+        },
+        {
+          "consumption": 57,
+          "receivedAt": "2026-05-26T16:27:33.668Z"
+        },
+        {
+          "consumption": 57,
+          "receivedAt": "2026-05-26T16:27:38.682Z"
+        },
+        {
+          "consumption": 28,
+          "receivedAt": "2026-05-26T16:27:43.695Z"
+        },
+        {
+          "consumption": 20,
+          "receivedAt": "2026-05-26T16:27:48.707Z"
+        },
+        {
+          "consumption": 11,
+          "receivedAt": "2026-05-26T16:27:53.721Z"
+        },
+        {
+          "consumption": 78,
+          "receivedAt": "2026-05-26T16:27:58.737Z"
+        },
+        {
+          "consumption": 92,
+          "receivedAt": "2026-05-26T16:28:03.748Z"
+        },
+        {
+          "consumption": 19,
+          "receivedAt": "2026-05-26T16:28:08.756Z"
+        },
+        {
+          "consumption": 24,
+          "receivedAt": "2026-05-26T16:28:13.765Z"
+        },
+        {
+          "consumption": 15,
+          "receivedAt": "2026-05-26T16:28:18.774Z"
+        },
+        {
+          "consumption": 61,
+          "receivedAt": "2026-05-26T16:28:23.785Z"
+        },
+        {
+          "consumption": 71,
+          "receivedAt": "2026-05-26T16:28:28.796Z"
+        },
+        {
+          "consumption": 60,
+          "receivedAt": "2026-05-26T16:28:33.804Z"
+        },
+        {
+          "consumption": 66,
+          "receivedAt": "2026-05-26T16:28:38.812Z"
+        },
+        {
+          "consumption": 52,
+          "receivedAt": "2026-05-26T16:28:43.819Z"
+        },
+        {
+          "consumption": 94,
+          "receivedAt": "2026-05-26T16:28:48.830Z"
+        },
+        {
+          "consumption": 83,
+          "receivedAt": "2026-05-26T16:28:53.844Z"
+        },
+        {
+          "consumption": 80,
+          "receivedAt": "2026-05-26T16:28:58.859Z"
+        },
+        {
+          "consumption": 27,
+          "receivedAt": "2026-05-26T16:29:03.869Z"
+        },
+        {
+          "consumption": 53,
+          "receivedAt": "2026-05-26T16:29:08.882Z"
+        },
+        {
+          "consumption": 90,
+          "receivedAt": "2026-05-26T16:29:13.896Z"
+        },
+        {
+          "consumption": 95,
+          "receivedAt": "2026-05-26T16:29:18.913Z"
+        },
+        {
+          "consumption": 29,
+          "receivedAt": "2026-05-26T16:29:23.928Z"
+        },
+        {
+          "consumption": 10,
+          "receivedAt": "2026-05-26T16:29:28.940Z"
+        },
+        {
+          "consumption": 29,
+          "receivedAt": "2026-05-26T16:29:33.952Z"
+        },
+        {
+          "consumption": 66,
+          "receivedAt": "2026-05-26T16:29:38.961Z"
+        },
+        {
+          "consumption": 89,
+          "receivedAt": "2026-05-26T16:29:43.974Z"
+        },
+        {
+          "consumption": 77,
+          "receivedAt": "2026-05-26T16:29:48.989Z"
+        },
+        {
+          "consumption": 23,
+          "receivedAt": "2026-05-26T16:29:54.002Z"
+        },
+        {
+          "consumption": 92,
+          "receivedAt": "2026-05-26T16:29:59.016Z"
+        },
+        {
+          "consumption": 32,
+          "receivedAt": "2026-05-26T16:30:04.030Z"
+        },
+        {
+          "consumption": 74,
+          "receivedAt": "2026-05-26T16:30:09.044Z"
+        },
+        {
+          "consumption": 80,
+          "receivedAt": "2026-05-26T16:30:14.057Z"
         }
       ]
     }

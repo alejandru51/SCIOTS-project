@@ -1,5 +1,5 @@
 'use strict';
-
+//EJEMPLO BLINDSIGN
 import crypto   from 'crypto';
 import fs       from 'fs/promises';
 import * as paillierBigint from 'paillier-bigint';
